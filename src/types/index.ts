@@ -62,6 +62,7 @@ export interface QRCodeConfig {
 export interface SystemSettings {
   appName: string;
   subTitle: string;
+  appLogo?: string;
   institutionName: string;
   institutionAddress: string;
   adminWhatsApp: string;
@@ -98,6 +99,7 @@ export interface ChartDayData {
 export interface PublicInfo {
   appName: string;
   subTitle: string;
+  appLogo?: string;
   institutionName: string;
   adminWhatsApp: string;
   footerText: string;

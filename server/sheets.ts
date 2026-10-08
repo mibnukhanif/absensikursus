@@ -116,7 +116,27 @@ export async function pullUsersFromSheets(): Promise<{
  * Mirror attendance record to Google Sheets asynchronously
  */
 export function asyncMirrorAttendanceToSheets(record: AttendanceRecord) {
-  sendToGoogleSheets('RECORD_ATTENDANCE', record)
+  const payload = {
+    id: record.id,
+    muridId: record.muridId,
+    nis: record.nis,
+    nama: record.nama,
+    kelas: record.kelas,
+    tanggal: record.tanggal,
+    jam: record.jam,
+    shift: record.shift || 'Shift Reguler',
+    status: record.status,
+    latitude: (record.latitude !== null && record.latitude !== undefined) ? Number(record.latitude) : '',
+    longitude: (record.longitude !== null && record.longitude !== undefined) ? Number(record.longitude) : '',
+    accuracy: record.accuracy || '',
+    jarakMeter: (record.jarakMeter !== null && record.jarakMeter !== undefined) ? Number(record.jarakMeter) : '',
+    lokasiStatus: record.lokasiStatus || '',
+    mapsUrl: record.mapsUrl || (record.latitude && record.longitude ? `https://www.google.com/maps?q=${record.latitude},${record.longitude}` : ''),
+    qrId: record.qrId,
+    timestamp: record.timestamp
+  };
+
+  sendToGoogleSheets('RECORD_ATTENDANCE', payload)
     .then((result) => {
       if (result.success) {
         console.log(`[SHEETS SYNC] Berhasil catat presensi ${record.nama} ke Spreadsheet.`);

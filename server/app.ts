@@ -141,6 +141,7 @@ router.get('/public/info', (_req: Request, res: Response) => {
   res.json({
     appName: settings.appName,
     subTitle: settings.subTitle,
+    appLogo: settings.appLogo || '',
     institutionName: settings.institutionName,
     adminWhatsApp: settings.adminWhatsApp,
     footerText: settings.footerText,
@@ -559,20 +560,28 @@ router.post('/attendance/scan', authenticateToken, requireMurid, (req: Authentic
     }
 
     // 3. Validasi & Pengolahan Lokasi Koordinat GPS
-    const userLat = typeof latitude === 'number' ? latitude : (latitude ? parseFloat(latitude) : null);
-    const userLon = typeof longitude === 'number' ? longitude : (longitude ? parseFloat(longitude) : null);
-    const userAccuracy = typeof accuracy === 'number' ? accuracy : null;
+    let userLat: number | null = null;
+    let userLon: number | null = null;
+    if (latitude !== null && latitude !== undefined && latitude !== '') {
+      const parsed = parseFloat(String(latitude));
+      if (!isNaN(parsed)) userLat = parsed;
+    }
+    if (longitude !== null && longitude !== undefined && longitude !== '') {
+      const parsed = parseFloat(String(longitude));
+      if (!isNaN(parsed)) userLon = parsed;
+    }
+    const userAccuracy = typeof accuracy === 'number' && !isNaN(accuracy) ? Math.round(accuracy) : null;
 
     let jarakMeter: number | null = null;
     let lokasiStatus: 'Sesuai Radius' | 'Luar Radius' | 'Lokasi Tidak Terdeteksi' = 'Lokasi Tidak Terdeteksi';
     let mapsUrl: string | undefined = undefined;
 
-    if (userLat !== null && userLon !== null && !isNaN(userLat) && !isNaN(userLon)) {
+    if (userLat !== null && userLon !== null) {
       jarakMeter = calculateDistanceMeters(
         userLat,
         userLon,
-        settings.targetLatitude,
-        settings.targetLongitude
+        settings.targetLatitude ?? -6.200000,
+        settings.targetLongitude ?? 106.816666
       );
       const isWithinRadius = jarakMeter <= (settings.radiusMeters || 100);
       lokasiStatus = isWithinRadius ? 'Sesuai Radius' : 'Luar Radius';
@@ -1006,6 +1015,7 @@ router.put('/admin/settings', authenticateToken, requireAdmin, (req: Authenticat
   const {
     appName,
     subTitle,
+    appLogo,
     institutionName,
     institutionAddress,
     adminWhatsApp,
@@ -1027,6 +1037,7 @@ router.put('/admin/settings', authenticateToken, requireAdmin, (req: Authenticat
   const updates: any = {};
   if (appName) updates.appName = appName.trim();
   if (subTitle) updates.subTitle = subTitle.trim();
+  if (appLogo !== undefined) updates.appLogo = appLogo;
   if (institutionName) updates.institutionName = institutionName.trim();
   if (institutionAddress) updates.institutionAddress = institutionAddress.trim();
   if (adminWhatsApp) updates.adminWhatsApp = adminWhatsApp.trim();

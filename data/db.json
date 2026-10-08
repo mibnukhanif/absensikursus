@@ -39,7 +39,28 @@
       "updatedAt": "2026-10-08T00:00:00.000Z"
     }
   ],
-  "attendance": [],
+  "attendance": [
+    {
+      "id": "att-1791443370387-dnnkfx",
+      "muridId": "murid-1001",
+      "nis": "1001",
+      "nama": "Ahmad Fauzi",
+      "kelas": "XII IPA 1",
+      "tanggal": "2026-10-08",
+      "jam": "14:09:30",
+      "status": "Terlambat",
+      "shift": "Shift Pagi / Reguler",
+      "latitude": -6.2088,
+      "longitude": 106.8192,
+      "accuracy": 12,
+      "jarakMeter": 1018,
+      "lokasiStatus": "Luar Radius",
+      "mapsUrl": "https://www.google.com/maps?q=-6.2088,106.8192",
+      "qrId": "DIGITALMEERA-ABSENSI-001",
+      "timestamp": 1791443370378,
+      "createdAt": "2026-10-08T07:09:30.387Z"
+    }
+  ],
   "qrCode": {
     "id": "qr-primary-1",
     "identifier": "DIGITALMEERA-ABSENSI-001",
@@ -57,6 +78,28 @@
     "adminEmail": "digitalmeera.com@gmail.com",
     "jamMasuk": "07:30",
     "jamPulang": "15:00",
+    "shifts": [
+      {
+        "id": "shift-pagi",
+        "nama": "Shift Pagi / Reguler",
+        "jamMasuk": "07:30",
+        "jamPulang": "15:00",
+        "toleransiMenit": 0,
+        "aktif": true
+      },
+      {
+        "id": "shift-siang",
+        "nama": "Shift Siang",
+        "jamMasuk": "12:30",
+        "jamPulang": "17:30",
+        "toleransiMenit": 0,
+        "aktif": true
+      }
+    ],
+    "targetLatitude": -6.2,
+    "targetLongitude": 106.816666,
+    "radiusMeters": 100,
+    "enforceLocation": false,
     "footerText": "© 2026 DIGITALMEERA. Hak Cipta Dilindungi.",
     "googleSheetsId": "1Mv6cw3CrjCVW7o42lM87iN98D0i0p4ClaCCHrg9i1Ek",
     "googleSheetsScriptUrl": "https://script.google.com/macros/s/AKfycbybSkJPMQvRtFQFLhKyb76R1mxWPxM6N5kuhV4oGAhhQMuyQAogLtV8TJrRiCQbURQI/exec",

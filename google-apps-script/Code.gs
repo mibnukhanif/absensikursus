@@ -390,39 +390,84 @@ function handleRecordAttendance(ss, item) {
 
   var sheet = getOrCreateSheet(ss, "ABSENSI", HEADERS_DEF.ABSENSI, "#047857");
 
-  // Format link Google Maps
+  // 1. Periksa header baris 1. Jika belum ada LATITUDE / LONGITUDE / LOKASI_MAPS, perbarui header otomatis
+  var lastCol = Math.max(sheet.getLastColumn(), 1);
+  var currentHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var headerMap = {};
+  for (var h = 0; h < currentHeaders.length; h++) {
+    var cName = String(currentHeaders[h] || "").trim().toUpperCase();
+    if (cName) headerMap[cName] = h + 1; // 1-indexed column
+  }
+
+  // Jika kolom LATITUDE belum ada di baris 1, otomatis perbarui baris 1 dengan HEADERS_DEF.ABSENSI
+  if (!headerMap["LATITUDE"] || !headerMap["LONGITUDE"] || !headerMap["LOKASI_MAPS"]) {
+    sheet.getRange(1, 1, 1, HEADERS_DEF.ABSENSI.length).setValues([HEADERS_DEF.ABSENSI]);
+    var hRange = sheet.getRange(1, 1, 1, HEADERS_DEF.ABSENSI.length);
+    hRange.setBackground("#047857");
+    hRange.setFontColor("#FFFFFF");
+    hRange.setFontWeight("bold");
+    sheet.setFrozenRows(1);
+
+    // Refresh headerMap
+    headerMap = {};
+    for (var nh = 0; nh < HEADERS_DEF.ABSENSI.length; nh++) {
+      headerMap[HEADERS_DEF.ABSENSI[nh]] = nh + 1;
+    }
+  }
+
+  // 2. Olah Nilai Koordinat, Jarak, dan Link Maps
+  var latVal = (item.latitude !== null && item.latitude !== undefined && item.latitude !== "") ? Number(item.latitude) : "";
+  var lonVal = (item.longitude !== null && item.longitude !== undefined && item.longitude !== "") ? Number(item.longitude) : "";
   var mapsUrl = item.mapsUrl || "";
-  if (!mapsUrl && item.latitude && item.longitude) {
-    mapsUrl = "https://www.google.com/maps?q=" + item.latitude + "," + item.longitude;
+  if (!mapsUrl && latVal !== "" && lonVal !== "") {
+    mapsUrl = "https://www.google.com/maps?q=" + latVal + "," + lonVal;
   }
 
-  var jarakText = "";
+  var jarakVal = "";
   if (item.jarakMeter !== null && item.jarakMeter !== undefined && item.jarakMeter !== "") {
-    jarakText = String(item.jarakMeter) + " m";
+    jarakVal = String(item.jarakMeter) + " m";
   }
 
-  sheet.appendRow([
-    item.id || "",
-    item.muridId || "",
-    item.nis || "",
-    item.nama || "",
-    item.kelas || "",
-    item.tanggal || "",
-    item.jam || "",
-    item.shift || "Shift Reguler",
-    item.status || "Hadir",
-    item.latitude !== null && item.latitude !== undefined ? item.latitude : "",
-    item.longitude !== null && item.longitude !== undefined ? item.longitude : "",
-    jarakText,
-    mapsUrl,
-    item.qrId || "",
-    item.timestamp ? new Date(item.timestamp).toISOString() : new Date().toISOString()
-  ]);
+  // 3. Susun Baris berdasarkan Kolom Header yang ada di Spreadsheet
+  var targetColsCount = Math.max(sheet.getLastColumn(), HEADERS_DEF.ABSENSI.length);
+  var rowData = new Array(targetColsCount);
+  for (var c = 0; c < targetColsCount; c++) rowData[c] = "";
+
+  function fillCol(name, val) {
+    var colIdx = headerMap[name];
+    if (colIdx && colIdx <= targetColsCount) {
+      rowData[colIdx - 1] = val;
+    }
+  }
+
+  fillCol("ID_ABSENSI", item.id || ("att-" + new Date().getTime()));
+  fillCol("ID_MURID", item.muridId || "");
+  fillCol("NIS", item.nis || "");
+  fillCol("NAMA", item.nama || "");
+  fillCol("KELAS", item.kelas || "");
+  fillCol("TANGGAL", item.tanggal || Utilities.formatDate(new Date(), "Asia/Jakarta", "yyyy-MM-dd"));
+  fillCol("JAM", item.jam || Utilities.formatDate(new Date(), "Asia/Jakarta", "HH:mm:ss"));
+  fillCol("SHIFT", item.shift || "Shift Reguler");
+  fillCol("STATUS", item.status || "Hadir");
+  fillCol("LATITUDE", latVal);
+  fillCol("LONGITUDE", lonVal);
+  fillCol("JARAK_METER", jarakVal);
+  fillCol("LOKASI_MAPS", mapsUrl);
+  fillCol("QR_ID", item.qrId || "");
+  fillCol("TIMESTAMP", item.timestamp ? new Date(item.timestamp).toISOString() : new Date().toISOString());
+
+  sheet.appendRow(rowData);
 
   return responseJSON({
     success: true,
-    message: "Absensi " + item.nama + " berhasil dicatat ke Google Sheets dengan titik koordinat.",
-    row: sheet.getLastRow()
+    message: "Absensi " + item.nama + " berhasil dicatat ke Google Sheets dengan titik koordinat (" + latVal + ", " + lonVal + ").",
+    row: sheet.getLastRow(),
+    data: {
+      latitude: latVal,
+      longitude: lonVal,
+      jarak: jarakVal,
+      maps: mapsUrl
+    }
   });
 }
 

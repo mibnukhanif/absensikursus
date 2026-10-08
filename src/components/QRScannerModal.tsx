@@ -13,13 +13,15 @@ interface QRScannerModalProps {
   onClose: () => void;
   onScanSuccess: (scannedText: string, coords?: GeoLocationCoords | null) => void;
   isProcessing?: boolean;
+  initialCoords?: GeoLocationCoords | null;
 }
 
 export const QRScannerModal: React.FC<QRScannerModalProps> = ({
   isOpen,
   onClose,
   onScanSuccess,
-  isProcessing = false
+  isProcessing = false,
+  initialCoords = null
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -31,14 +33,23 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
   const [manualCode, setManualCode] = useState<string>('');
   const [showManualInput, setShowManualInput] = useState<boolean>(false);
 
-  // GPS Coordinates state
-  const [gpsCoords, setGpsCoords] = useState<GeoLocationCoords | null>(null);
+  // GPS Coordinates state and ref to avoid stale closures during requestAnimationFrame
+  const [gpsCoords, setGpsCoords] = useState<GeoLocationCoords | null>(initialCoords || null);
   const [gpsLoading, setGpsLoading] = useState<boolean>(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
+  const gpsCoordsRef = useRef<GeoLocationCoords | null>(initialCoords || null);
 
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameId = useRef<number | null>(null);
   const hasDetectedRef = useRef<boolean>(false);
+
+  // Sync initialCoords if provided
+  useEffect(() => {
+    if (initialCoords) {
+      gpsCoordsRef.current = initialCoords;
+      setGpsCoords(initialCoords);
+    }
+  }, [initialCoords]);
 
   // Fetch device GPS location whenever modal opens
   useEffect(() => {
@@ -47,20 +58,25 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
         setGpsLoading(true);
         navigator.geolocation.getCurrentPosition(
           (pos) => {
-            setGpsCoords({
+            const coords: GeoLocationCoords = {
               latitude: pos.coords.latitude,
               longitude: pos.coords.longitude,
               accuracy: Math.round(pos.coords.accuracy)
-            });
+            };
+            gpsCoordsRef.current = coords;
+            setGpsCoords(coords);
             setGpsLoading(false);
             setGpsError(null);
           },
           (err) => {
             console.warn('GPS location error:', err);
-            setGpsError(err.message || 'Izin lokasi tidak diberikan');
+            // If we don't have initialCoords, record error
+            if (!gpsCoordsRef.current) {
+              setGpsError(err.message || 'Izin lokasi tidak diberikan');
+            }
             setGpsLoading(false);
           },
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+          { enableHighAccuracy: true, timeout: 8000, maximumAge: 10000 }
         );
       } else {
         setGpsError('Perangkat tidak mendukung GPS.');
@@ -195,7 +211,27 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
           hasDetectedRef.current = true;
           playBeep();
           stopCamera();
-          onScanSuccess(code.data.trim(), gpsCoords);
+
+          const coordsToSend = gpsCoordsRef.current;
+          if (!coordsToSend && 'geolocation' in navigator) {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                const liveCoords: GeoLocationCoords = {
+                  latitude: pos.coords.latitude,
+                  longitude: pos.coords.longitude,
+                  accuracy: Math.round(pos.coords.accuracy)
+                };
+                gpsCoordsRef.current = liveCoords;
+                onScanSuccess(code.data.trim(), liveCoords);
+              },
+              () => {
+                onScanSuccess(code.data.trim(), null);
+              },
+              { enableHighAccuracy: true, timeout: 2000, maximumAge: 30000 }
+            );
+          } else {
+            onScanSuccess(code.data.trim(), coordsToSend);
+          }
           return;
         }
       }
@@ -378,7 +414,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
                 disabled={!manualCode.trim() || isProcessing}
                 onClick={() => {
                   stopCamera();
-                  onScanSuccess(manualCode.trim(), gpsCoords);
+                  onScanSuccess(manualCode.trim(), gpsCoordsRef.current);
                 }}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold rounded-xl text-sm transition"
               >

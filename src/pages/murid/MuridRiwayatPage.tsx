@@ -110,22 +110,33 @@ export const MuridRiwayatPage: React.FC<MuridRiwayatPageProps> = ({ onNavigate }
                   </div>
                 </div>
 
-                {item.latitude && item.longitude && (
-                  <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[11px]">
-                    <span className="text-slate-400 flex items-center gap-1 font-mono text-[10px]">
-                      <MapPin className="w-3.5 h-3.5 text-rose-400" /> {item.latitude.toFixed(5)}, {item.longitude.toFixed(5)}
+                {item.latitude && item.longitude ? (
+                  <div className="pt-2 border-t border-slate-800/80 flex flex-col gap-1.5 text-[11px]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 flex items-center gap-1 font-mono text-[11px]">
+                        <MapPin className="w-3.5 h-3.5 text-rose-400" />
+                        <span className="text-slate-200">{item.latitude.toFixed(6)}, {item.longitude.toFixed(6)}</span>
+                      </span>
                       {item.jarakMeter !== null && item.jarakMeter !== undefined && (
-                        <span className="text-slate-500">({item.jarakMeter}m)</span>
+                        <span className="text-emerald-400 font-semibold text-[11px] bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-800/40">
+                          {item.jarakMeter}m ({item.lokasiStatus || 'Dalam Radius'})
+                        </span>
                       )}
-                    </span>
+                    </div>
                     <a
                       href={item.mapsUrl || `https://www.google.com/maps?q=${item.latitude},${item.longitude}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1 text-[11px]"
+                      className="mt-1 w-full py-1.5 px-3 rounded-xl bg-blue-600/15 hover:bg-blue-600/25 border border-blue-500/30 text-blue-300 font-medium flex items-center justify-center gap-1.5 text-xs transition"
                     >
-                      Google Maps <ExternalLink className="w-3 h-3" />
+                      <MapPin className="w-3.5 h-3.5 text-blue-400" /> Buka Google Maps <ExternalLink className="w-3 h-3 text-blue-400" />
                     </a>
+                  </div>
+                ) : (
+                  <div className="pt-1.5 border-t border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500">
+                    <span className="flex items-center gap-1">
+                      <MapPin className="w-3 h-3 text-slate-600" /> Lokasi GPS: Tidak terdeteksi
+                    </span>
                   </div>
                 )}
               </div>

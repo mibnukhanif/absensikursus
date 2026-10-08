@@ -38,12 +38,33 @@ export const MuridDashboard: React.FC<MuridDashboardProps> = ({ onNavigate }) =>
   const [scannerOpen, setScannerOpen] = useState<boolean>(false);
   const [scanProcessing, setScanProcessing] = useState<boolean>(false);
   const [selectedShiftId, setSelectedShiftId] = useState<string>('');
+  const [deviceCoords, setDeviceCoords] = useState<GeoLocationCoords | null>(null);
+  const deviceCoordsRef = React.useRef<GeoLocationCoords | null>(null);
   const [scanResult, setScanResult] = useState<{
     type: 'success' | 'already' | 'invalid' | 'error' | 'location_error';
     title: string;
     message: string;
     data?: any;
   } | null>(null);
+
+  // Pre-warm device GPS location in background as soon as dashboard mounts
+  useEffect(() => {
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const c: GeoLocationCoords = {
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            accuracy: Math.round(pos.coords.accuracy)
+          };
+          setDeviceCoords(c);
+          deviceCoordsRef.current = c;
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+      );
+    }
+  }, []);
 
   // Active shifts from public info
   const activeShifts: PresensiShift[] = (publicInfo?.shifts && publicInfo.shifts.length > 0)
@@ -90,14 +111,18 @@ export const MuridDashboard: React.FC<MuridDashboardProps> = ({ onNavigate }) =>
 
   const handleScanSubmit = async (scannedCode: string, coords?: GeoLocationCoords | null) => {
     setScanProcessing(true);
+    const finalLat = coords?.latitude ?? deviceCoordsRef.current?.latitude ?? null;
+    const finalLon = coords?.longitude ?? deviceCoordsRef.current?.longitude ?? null;
+    const finalAcc = coords?.accuracy ?? deviceCoordsRef.current?.accuracy ?? null;
+
     try {
       const res = await apiRequest('/api/attendance/scan', {
         method: 'POST',
         body: JSON.stringify({
           qrIdentifier: scannedCode,
-          latitude: coords?.latitude || null,
-          longitude: coords?.longitude || null,
-          accuracy: coords?.accuracy || null,
+          latitude: finalLat,
+          longitude: finalLon,
+          accuracy: finalAcc,
           shiftId: selectedShiftId || undefined
         })
       });
@@ -331,32 +356,63 @@ export const MuridDashboard: React.FC<MuridDashboardProps> = ({ onNavigate }) =>
                   </div>
                 </div>
 
-                {todayRecord.latitude && todayRecord.longitude && (
-                  <div className="pt-2 border-t border-slate-800/80 flex flex-col gap-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400 text-[11px] flex items-center gap-1">
-                        <MapPin className="w-3.5 h-3.5 text-rose-400" /> Titik Koordinat:
+                {/* Location Details Box */}
+                <div className="pt-2.5 border-t border-slate-800/80 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 text-[11px] font-semibold flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-rose-400" /> Titik Lokasi Presensi:
+                    </span>
+                    {todayRecord.latitude && todayRecord.longitude ? (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        {todayRecord.lokasiStatus || 'Sesuai Radius'}
                       </span>
-                      <span className="font-mono text-emerald-300 font-semibold text-[11px]">
-                        {todayRecord.latitude.toFixed(6)}, {todayRecord.longitude.toFixed(6)}
-                      </span>
-                    </div>
-                    {todayRecord.jarakMeter !== null && todayRecord.jarakMeter !== undefined && (
-                      <div className="text-[11px] text-slate-400">
-                        Jarak ke Sekolah: <strong className="text-white">{todayRecord.jarakMeter} meter</strong>{' '}
-                        <span className="text-emerald-400">({todayRecord.lokasiStatus || 'Dalam Radius'})</span>
-                      </div>
+                    ) : (
+                      <span className="text-[10px] text-slate-500">Tidak Terdata</span>
                     )}
+                  </div>
+
+                  {todayRecord.latitude && todayRecord.longitude ? (
+                    <div className="bg-slate-900/90 rounded-xl p-2.5 border border-slate-800 text-[11px] space-y-1.5 font-mono">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500">Koordinat GPS:</span>
+                        <span className="text-white font-bold">
+                          {todayRecord.latitude.toFixed(6)}, {todayRecord.longitude.toFixed(6)}
+                        </span>
+                      </div>
+                      {todayRecord.jarakMeter !== null && todayRecord.jarakMeter !== undefined && (
+                        <div className="flex items-center justify-between pt-1 border-t border-slate-800/60 font-sans">
+                          <span className="text-slate-400">Jarak ke Sekolah:</span>
+                          <span className="font-bold text-emerald-300">
+                            {todayRecord.jarakMeter} meter
+                          </span>
+                        </div>
+                      )}
+                      {todayRecord.accuracy && (
+                        <div className="flex items-center justify-between text-[10px] text-slate-500 font-sans">
+                          <span>Akurasi GPS Perangkat:</span>
+                          <span>±{todayRecord.accuracy} meter</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-2 rounded-xl bg-slate-900/40 border border-slate-800/60 text-[11px] text-slate-500 text-center">
+                      Titik koordinat GPS tidak terdeteksi saat presensi dilakukan.
+                    </div>
+                  )}
+
+                  {todayRecord.latitude && todayRecord.longitude && (
                     <a
                       href={todayRecord.mapsUrl || `https://www.google.com/maps?q=${todayRecord.latitude},${todayRecord.longitude}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-1 w-full py-2 px-3 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 font-semibold text-xs flex items-center justify-center gap-1.5 transition"
+                      className="mt-0.5 w-full py-2.5 px-3 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-blue-300 font-semibold text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-sm"
                     >
-                      <MapPin className="w-3.5 h-3.5 text-blue-400" /> Lihat Lokasi di Google Maps
+                      <MapPin className="w-3.5 h-3.5 text-blue-400" />
+                      <span>Buka Titik Lokasi di Google Maps</span>
+                      <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
                     </a>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
           ) : (
@@ -520,6 +576,7 @@ export const MuridDashboard: React.FC<MuridDashboardProps> = ({ onNavigate }) =>
         onClose={() => setScannerOpen(false)}
         onScanSuccess={handleScanSubmit}
         isProcessing={scanProcessing}
+        initialCoords={deviceCoords}
       />
     </div>
   );
