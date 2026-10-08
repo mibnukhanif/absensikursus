@@ -106,7 +106,7 @@ export const LoginAdminPage: React.FC<LoginAdminPageProps> = ({ onNavigate }) =>
                   required
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="admin@digitalmeera.edu atau username"
+                  placeholder="Masukkan username atau email admin"
                   className="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-700/80 rounded-2xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
                 />
               </div>

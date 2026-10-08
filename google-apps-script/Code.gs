@@ -282,7 +282,7 @@ function handleSyncMurid(ss, muridList) {
 }
 
 /**
- * Catat akun Admin ke tab "ADMIN"
+ * Catat / Perbarui akun Admin ke tab "ADMIN"
  */
 function handleAddAdmin(ss, adminUser) {
   if (!adminUser) return responseJSON({ success: false, message: "Data admin kosong." });
@@ -291,17 +291,48 @@ function handleAddAdmin(ss, adminUser) {
     "ID_ADMIN", "AUTH_ID", "NAMA", "ROLE", "STATUS"
   ]);
 
-  sheet.appendRow([
-    adminUser.id || "",
-    adminUser.email || adminUser.username || "",
-    adminUser.name || "",
+  var lastRow = sheet.getLastRow();
+  var rowIndex = -1;
+
+  // Cek apakah admin sudah ada berdasarkan ID atau Email/Username
+  if (lastRow > 1) {
+    var data = sheet.getRange(2, 1, lastRow - 1, 3).getValues();
+    for (var i = 0; i < data.length; i++) {
+      var rowId = String(data[i][0]);
+      var rowAuth = String(data[i][1]);
+      if (
+        (adminUser.id && rowId === String(adminUser.id)) ||
+        (adminUser.email && rowAuth.indexOf(adminUser.email) !== -1) ||
+        (adminUser.username && rowAuth.indexOf(adminUser.username) !== -1)
+      ) {
+        rowIndex = i + 2;
+        break;
+      }
+    }
+  }
+
+  // Format AUTH_ID: "username (email)"
+  var authId = adminUser.username
+    ? (adminUser.username + (adminUser.email ? " (" + adminUser.email + ")" : ""))
+    : (adminUser.email || "");
+
+  var rowValues = [
+    adminUser.id || ("admin-" + new Date().getTime()),
+    authId,
+    adminUser.name || "Administrator",
     adminUser.role || "admin",
     "aktif"
-  ]);
+  ];
+
+  if (rowIndex > 0) {
+    sheet.getRange(rowIndex, 1, 1, rowValues.length).setValues([rowValues]);
+  } else {
+    sheet.appendRow(rowValues);
+  }
 
   return responseJSON({
     success: true,
-    message: "Data admin berhasil disimpan ke Google Sheets."
+    message: "Data admin " + (adminUser.name || "") + " [" + authId + "] berhasil disimpan ke Google Sheets."
   });
 }
 

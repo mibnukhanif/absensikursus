@@ -907,6 +907,103 @@ router.put('/admin/settings', authenticateToken, requireAdmin, (req: Authenticat
   });
 });
 
+// Admin: Get Current Admin Profile
+router.get('/admin/profile', authenticateToken, requireAdmin, (req: AuthenticatedRequest, res: Response) => {
+  const admin = db.findAdminById(req.user!.id);
+  if (!admin) {
+    return res.status(404).json({ success: false, message: 'Akun admin tidak ditemukan.' });
+  }
+  res.json({
+    success: true,
+    data: {
+      id: admin.id,
+      name: admin.name,
+      email: admin.email,
+      username: admin.username,
+      role: admin.role
+    }
+  });
+});
+
+// Admin: Update Profile, Username & Password (and sync to Google Sheets)
+router.put('/admin/profile', authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const admin = db.findAdminById(req.user!.id);
+    if (!admin) {
+      return res.status(404).json({ success: false, message: 'Akun admin tidak ditemukan.' });
+    }
+
+    const { name, email, username, currentPassword, newPassword } = req.body;
+    const updates: Partial<AdminUser> = {};
+
+    if (name && name.trim()) {
+      updates.name = name.trim();
+    }
+
+    if (email && email.trim() !== admin.email) {
+      const cleanEmail = email.trim().toLowerCase();
+      const existing = db.findAdminByEmailOrUsername(cleanEmail);
+      if (existing && existing.id !== admin.id) {
+        return res.status(400).json({ success: false, message: 'Email sudah digunakan oleh administrator lain.' });
+      }
+      updates.email = cleanEmail;
+    }
+
+    if (username && username.trim() !== admin.username) {
+      const cleanUsername = username.trim().toLowerCase();
+      const existing = db.findAdminByEmailOrUsername(cleanUsername);
+      if (existing && existing.id !== admin.id) {
+        return res.status(400).json({ success: false, message: 'Username sudah digunakan oleh administrator lain.' });
+      }
+      updates.username = cleanUsername;
+    }
+
+    if (newPassword && newPassword.trim()) {
+      if (!currentPassword) {
+        return res.status(400).json({ success: false, message: 'Password saat ini wajib diisi untuk mengganti password.' });
+      }
+      const match = await verifyPassword(currentPassword, admin.passwordHash);
+      if (!match) {
+        return res.status(400).json({ success: false, message: 'Password saat ini salah.' });
+      }
+      if (newPassword.trim().length < 8) {
+        return res.status(400).json({ success: false, message: 'Password baru minimal 8 karakter.' });
+      }
+      updates.passwordHash = await hashPassword(newPassword.trim());
+    }
+
+    const updated = db.updateAdmin(admin.id, updates);
+    if (!updated) {
+      return res.status(500).json({ success: false, message: 'Gagal memperbarui data admin.' });
+    }
+
+    // Sinkronkan akun admin ke tab "ADMIN" di Google Spreadsheet
+    asyncSyncAdminToSheets(updated);
+
+    db.logAction(
+      updated.name,
+      'admin',
+      'Update Profil Admin',
+      `Memperbarui profil/username admin: ${updated.username} (${updated.email})`
+    );
+
+    res.json({
+      success: true,
+      message: 'Profil & username administrator berhasil disimpan dan disinkronkan ke Google Spreadsheet!',
+      data: {
+        id: updated.id,
+        name: updated.name,
+        email: updated.email,
+        username: updated.username,
+        role: updated.role
+      }
+    });
+  } catch (err: any) {
+    console.error('Error updating admin profile:', err);
+    res.status(500).json({ success: false, message: 'Gagal memperbarui profil admin: ' + err.message });
+  }
+});
+
 // Admin: Test Google Apps Script Webhook Connection
 router.post('/admin/sheets/test', authenticateToken, requireAdmin, async (_req: AuthenticatedRequest, res: Response) => {
   try {
