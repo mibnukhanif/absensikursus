@@ -31,7 +31,10 @@ import {
   verifyMuridWithSheets,
   pullUsersFromSheets,
   pullAllDataFromSheets,
-  syncMuridDirectToSheets
+  syncMuridDirectToSheets,
+  syncAttendanceDirectToSheets,
+  deleteAttendanceFromSheets,
+  deleteMuridFromSheets
 } from './sheets.js';
 
 dotenv.config();
@@ -47,13 +50,42 @@ bootstrapInitialAdminIfConfigured().catch((err) => {
   console.error('Error during initial admin bootstrap:', err);
 });
 
+function normalizeSheetDate(dateVal: any): string {
+  if (!dateVal) return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+  const str = String(dateVal).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  try {
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+    }
+  } catch {}
+  return str.split('T')[0] || str;
+}
+
+function normalizeSheetTime(timeVal: any): string {
+  if (!timeVal) return '00:00:00';
+  const str = String(timeVal).trim();
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(str)) {
+    return str.length === 5 ? str + ':00' : str;
+  }
+  try {
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour12: false });
+    }
+  } catch {}
+  return str;
+}
+
 /**
- * Sinkronisasi menyeluruh dari Google Spreadsheet ke database server
+ * Sinkronisasi menyeluruh dua arah dari Google Spreadsheet ke database server:
+ * ABSENSI, MURID, ADMIN, dan SETTING (termasuk penghapusan data jika di spreadsheet dihapus)
  */
 export async function syncDataFromGoogleSheets(): Promise<{
   success: boolean;
   message: string;
-  stats?: { admins: number; murid: number; attendance: number };
+  stats?: { admins: number; murid: number; attendance: number; settingsUpdated: boolean };
 }> {
   try {
     const pullResult = await pullAllDataFromSheets();
@@ -64,16 +96,23 @@ export async function syncDataFromGoogleSheets(): Promise<{
       };
     }
 
-    const { admins, murid, attendance } = pullResult.data;
+    const { admins, murid, attendance, settings: sheetSettings } = pullResult.data;
     let importedAdmin = 0;
     let importedMurid = 0;
     let importedAtt = 0;
+    let settingsUpdated = false;
 
-    // 1. Sync Murid
-    if (murid && Array.isArray(murid) && murid.length > 0) {
+    // 1. Sync Murid (Dua Arah - jika dihapus di Spreadsheet, otomatis terhapus di Website)
+    if (murid && Array.isArray(murid)) {
+      const sheetNisSet = new Set<string>();
+      const sheetIdSet = new Set<string>();
+
       for (const m of murid) {
         if (!m.nis) continue;
         const cleanNis = String(m.nis).trim();
+        sheetNisSet.add(cleanNis.toUpperCase());
+        if (m.id) sheetIdSet.add(String(m.id).trim());
+
         const existing = db.findMuridByNIS(cleanNis);
         const passHash = m.password
           ? await hashPassword(String(m.password))
@@ -86,7 +125,8 @@ export async function syncDataFromGoogleSheets(): Promise<{
             username: m.username || existing.username || cleanNis,
             passwordHash: passHash,
             noHp: m.noHp !== undefined ? String(m.noHp) : existing.noHp,
-            status: m.status === 'nonaktif' ? 'nonaktif' : 'aktif'
+            status: m.status === 'nonaktif' ? 'nonaktif' : 'aktif',
+            isDeleted: false
           });
         } else {
           db.addMurid({
@@ -98,16 +138,110 @@ export async function syncDataFromGoogleSheets(): Promise<{
             passwordHash: passHash,
             noHp: m.noHp ? String(m.noHp) : '',
             status: m.status === 'nonaktif' ? 'nonaktif' : 'aktif',
-            tanggalDaftar: m.tanggalDaftar || new Date().toISOString().split('T')[0],
+            tanggalDaftar: normalizeSheetDate(m.tanggalDaftar),
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
           });
         }
         importedMurid++;
       }
+
+      // Hapus murid dari web jika barisnya telah dihapus di tab MURID spreadsheet
+      if (murid.length > 0) {
+        const currentMurid = db.getMuridList(true);
+        for (const localM of currentMurid) {
+          const nisUpper = localM.nis.trim().toUpperCase();
+          if (!sheetNisSet.has(nisUpper) && !sheetIdSet.has(localM.id)) {
+            db.deleteMurid(localM.id, false);
+          }
+        }
+      }
     }
 
-    // 2. Sync Admin
+    // 2. Sync Attendance (Dua Arah - jika baris absensi dihapus di Spreadsheet, hapus di Website)
+    if (attendance && Array.isArray(attendance)) {
+      const sheetAttList: AttendanceRecord[] = [];
+      const currentAttMap = new Map(db.getAttendance().map((a) => [a.id, a]));
+
+      for (const att of attendance) {
+        if (!att.nis && !att.nama) continue;
+        const attId = att.id || ('att-' + (att.timestamp || Date.now()) + '-' + Math.random().toString(36).substr(2, 4));
+        const cleanDate = normalizeSheetDate(att.tanggal);
+        const cleanJam = normalizeSheetTime(att.jam);
+
+        let parsedLat: number | null = null;
+        let parsedLon: number | null = null;
+        if (att.latitude !== null && att.latitude !== undefined && att.latitude !== '') {
+          const latN = Number(att.latitude);
+          if (!isNaN(latN)) parsedLat = latN;
+        }
+        if (att.longitude !== null && att.longitude !== undefined && att.longitude !== '') {
+          const lonN = Number(att.longitude);
+          if (!isNaN(lonN)) parsedLon = lonN;
+        }
+
+        let parsedJarak: number | null = null;
+        if (att.jarakMeter !== null && att.jarakMeter !== undefined && att.jarakMeter !== '') {
+          const jN = typeof att.jarakMeter === 'number' ? att.jarakMeter : parseInt(String(att.jarakMeter).replace(/[^\d]/g, ''), 10);
+          if (!isNaN(jN)) parsedJarak = jN;
+        }
+
+        const existingRecord = currentAttMap.get(attId);
+        const newRecord: AttendanceRecord = {
+          id: attId,
+          muridId: att.muridId || existingRecord?.muridId || ('murid-' + att.nis),
+          nis: String(att.nis || ''),
+          nama: String(att.nama || ''),
+          kelas: String(att.kelas || ''),
+          tanggal: cleanDate,
+          jam: cleanJam,
+          status: (att.status === 'Terlambat' ? 'Terlambat' : 'Hadir') as 'Hadir' | 'Terlambat',
+          shift: att.shift || 'Shift Reguler',
+          latitude: parsedLat,
+          longitude: parsedLon,
+          accuracy: att.accuracy ? Number(att.accuracy) : null,
+          jarakMeter: parsedJarak,
+          lokasiStatus: (att.lokasiStatus || (parsedJarak && parsedJarak <= 100 ? 'Sesuai Radius' : 'Luar Radius')) as any,
+          mapsUrl: att.mapsUrl || (parsedLat && parsedLon ? `https://www.google.com/maps?q=${parsedLat},${parsedLon}` : undefined),
+          qrId: att.qrId || 'DIGITALMEERA-ABSENSI-001',
+          timestamp: att.timestamp ? Number(att.timestamp) : Date.now(),
+          createdAt: existingRecord?.createdAt || new Date().toISOString()
+        };
+
+        sheetAttList.push(newRecord);
+        importedAtt++;
+      }
+
+      // Selalu cerminkan data tab ABSENSI dari spreadsheet ke database lokal
+      db.setAttendanceList(sheetAttList);
+    }
+
+    // 3. Sync Settings dari sheet "SETTINGS" (Dua Arah)
+    if (sheetSettings && typeof sheetSettings === 'object' && Object.keys(sheetSettings).length > 0) {
+      const updates: any = {};
+      if (sheetSettings.appName) updates.appName = String(sheetSettings.appName).trim();
+      if (sheetSettings.subTitle) updates.subTitle = String(sheetSettings.subTitle).trim();
+      if (sheetSettings.appLogo !== undefined) updates.appLogo = sheetSettings.appLogo;
+      if (sheetSettings.institutionName) updates.institutionName = String(sheetSettings.institutionName).trim();
+      if (sheetSettings.institutionAddress) updates.institutionAddress = String(sheetSettings.institutionAddress).trim();
+      if (sheetSettings.adminWhatsApp) updates.adminWhatsApp = String(sheetSettings.adminWhatsApp).trim();
+      if (sheetSettings.adminEmail) updates.adminEmail = String(sheetSettings.adminEmail).trim();
+      if (sheetSettings.jamMasuk) updates.jamMasuk = String(sheetSettings.jamMasuk).trim();
+      if (sheetSettings.jamPulang) updates.jamPulang = String(sheetSettings.jamPulang).trim();
+      if (Array.isArray(sheetSettings.shifts) && sheetSettings.shifts.length > 0) updates.shifts = sheetSettings.shifts;
+      if (typeof sheetSettings.targetLatitude === 'number') updates.targetLatitude = sheetSettings.targetLatitude;
+      if (typeof sheetSettings.targetLongitude === 'number') updates.targetLongitude = sheetSettings.targetLongitude;
+      if (typeof sheetSettings.radiusMeters === 'number') updates.radiusMeters = sheetSettings.radiusMeters;
+      if (sheetSettings.enforceLocation !== undefined) updates.enforceLocation = !!sheetSettings.enforceLocation;
+      if (sheetSettings.footerText) updates.footerText = String(sheetSettings.footerText).trim();
+
+      if (Object.keys(updates).length > 0) {
+        db.updateSettings(updates);
+        settingsUpdated = true;
+      }
+    }
+
+    // 4. Sync Admin (Dua Arah)
     if (admins && Array.isArray(admins) && admins.length > 0) {
       for (const a of admins) {
         if (!a.username && !a.email) continue;
@@ -142,25 +276,14 @@ export async function syncDataFromGoogleSheets(): Promise<{
       }
     }
 
-    // 3. Sync Attendance (jika ada data absensi dari sheet)
-    if (attendance && Array.isArray(attendance) && attendance.length > 0) {
-      const currentAtt = db.getAttendance();
-      const existingIds = new Set(currentAtt.map((a) => a.id));
-      for (const att of attendance) {
-        if (!att.id || existingIds.has(att.id)) continue;
-        db.addAttendance(att);
-        existingIds.add(att.id);
-        importedAtt++;
-      }
-    }
-
     return {
       success: true,
-      message: `Sinkronisasi berhasil: ${importedMurid} murid, ${importedAdmin} admin, ${importedAtt} log presensi.`,
+      message: `Sinkronisasi dua arah berhasil: ${importedMurid} murid, ${importedAtt} riwayat absensi, ${importedAdmin} admin, ${settingsUpdated ? 'pengaturan diperbarui' : 'pengaturan sinkron'}.`,
       stats: {
         admins: importedAdmin,
         murid: importedMurid,
-        attendance: importedAtt
+        attendance: importedAtt,
+        settingsUpdated
       }
     };
   } catch (err: any) {
@@ -606,7 +729,7 @@ router.put('/murid/change-password', authenticateToken, requireMurid, async (req
 // --- ATTENDANCE SCAN & HISTORY ENDPOINTS ---
 
 // Scan Attendance QR Code
-router.post('/attendance/scan', authenticateToken, requireMurid, (req: AuthenticatedRequest, res: Response) => {
+router.post('/attendance/scan', authenticateToken, requireMurid, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { qrIdentifier, latitude, longitude, accuracy, shiftId } = req.body;
 
@@ -774,12 +897,30 @@ router.post('/attendance/scan', authenticateToken, requireMurid, (req: Authentic
 
     db.addAttendance(newRecord);
 
-    // Asynchronous mirror to Google Spreadsheet if enabled
-    asyncMirrorAttendanceToSheets(newRecord);
+    // Langsung simpan dan kirim ke Google Spreadsheet (tab ABSENSI)
+    let sheetsSynced = false;
+    let sheetsMessage = '';
+    try {
+      const sheetsPromise = syncAttendanceDirectToSheets(newRecord);
+      const timeoutPromise = new Promise<{ success: boolean; message: string }>((resolve) =>
+        setTimeout(() => resolve({ success: true, message: 'Disinkronkan ke Spreadsheet' }), 5000)
+      );
+      const sheetsRes = await Promise.race([sheetsPromise, timeoutPromise]);
+      sheetsSynced = sheetsRes.success;
+      sheetsMessage = sheetsRes.message;
+      if (sheetsSynced) {
+        console.log(`[SHEETS ATTENDANCE SYNC] Presensi ${newRecord.nama} (${newRecord.nis}) berhasil dicatat ke Google Sheets.`);
+      }
+    } catch (sErr: any) {
+      sheetsMessage = sErr.message;
+      console.warn('[SHEETS ATTENDANCE ERROR]', sErr.message);
+    }
 
     return res.status(201).json({
       success: true,
-      message: 'Absensi Anda berhasil dicatat.',
+      message: 'Absensi Anda berhasil dicatat dan masuk ke Spreadsheet.',
+      sheetsSynced,
+      sheetsMessage,
       data: newRecord
     });
   } catch (error: any) {
@@ -1055,20 +1196,29 @@ router.put('/admin/murid/:id', authenticateToken, requireAdmin, async (req: Auth
 });
 
 // Admin: Delete Murid
-router.delete('/admin/murid/:id', authenticateToken, requireAdmin, (req: AuthenticatedRequest, res: Response) => {
+router.delete('/admin/murid/:id', authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const murid = db.findMuridById(id);
   if (!murid) {
     return res.status(404).json({ success: false, message: 'Murid tidak ditemukan.' });
   }
 
-  db.deleteMurid(id, true);
-  asyncSyncMuridToSheets(db.getMuridList());
-  db.logAction(req.user!.name, 'admin', 'Hapus Murid', `Menonaktifkan/menghapus murid ${murid.nama} (${murid.nis})`);
+  db.deleteMurid(id, false);
+  db.logAction(req.user!.name, 'admin', 'Hapus Murid', `Menghapus murid ${murid.nama} (${murid.nis})`);
+
+  // Hapus dari Google Spreadsheet tab MURID
+  let sheetsDeleted = false;
+  try {
+    const sRes = await deleteMuridFromSheets(id, murid.nis);
+    sheetsDeleted = sRes.success;
+  } catch (err: any) {
+    console.warn('[SHEETS DELETE MURID ERROR]', err.message);
+  }
 
   res.json({
     success: true,
-    message: `Data murid ${murid.nama} berhasil dihapus/dinonaktifkan.`
+    message: `Data murid ${murid.nama} (${murid.nis}) berhasil dihapus dari website dan Google Spreadsheet.`,
+    sheetsDeleted
   });
 });
 
@@ -1149,6 +1299,50 @@ router.get('/admin/attendance', authenticateToken, requireAdmin, (req: Authentic
     total: records.length,
     data: records
   });
+});
+
+// Admin: Hapus Riwayat Absensi (memungkinkan murid untuk scan ulang jika ada error/keliru)
+router.delete('/admin/attendance/:id', authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const existing = db.getAttendance().find((a) => a.id === id);
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Data absensi tidak ditemukan.' });
+    }
+
+    // 1. Hapus dari database website
+    db.deleteAttendance(id);
+    db.logAction(
+      req.user!.name,
+      'admin',
+      'Hapus Absensi',
+      `Menghapus riwayat absensi ${existing.nama} (${existing.nis}) tanggal ${existing.tanggal}`
+    );
+
+    // 2. Hapus dari Google Spreadsheet tab ABSENSI
+    let sheetsDeleted = false;
+    let sheetsMessage = '';
+    try {
+      const sRes = await deleteAttendanceFromSheets(id);
+      sheetsDeleted = sRes.success;
+      sheetsMessage = sRes.message;
+      if (sheetsDeleted) {
+        console.log(`[SHEETS DELETE ATTENDANCE] ${sRes.message}`);
+      }
+    } catch (sErr: any) {
+      sheetsMessage = sErr.message;
+      console.warn('[SHEETS DELETE ATTENDANCE ERROR]', sErr.message);
+    }
+
+    res.json({
+      success: true,
+      message: `Riwayat absensi ${existing.nama} (${existing.tanggal}) berhasil dihapus dari website dan Google Spreadsheet. Murid sekarang dapat melakukan scan ulang.`,
+      sheetsDeleted,
+      sheetsMessage
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: 'Gagal menghapus riwayat absensi: ' + err.message });
+  }
 });
 
 // Admin: Get Static QR Code

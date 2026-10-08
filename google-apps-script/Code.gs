@@ -360,10 +360,18 @@ function doPost(e) {
       case "RECORD_ATTENDANCE":
         return handleRecordAttendance(ss, data);
 
+      // 4b. Hapus Riwayat Absensi dari Spreadsheet
+      case "DELETE_ATTENDANCE":
+        return handleDeleteAttendance(ss, data);
+
       // 5. Simpan / Perbarui Murid
       case "ADD_MURID":
       case "UPDATE_MURID":
         return handleSaveSingleMurid(ss, data);
+
+      // 5b. Hapus Murid dari Spreadsheet
+      case "DELETE_MURID":
+        return handleDeleteMurid(ss, data);
 
       // 6. Sinkronisasi Seluruh Murid
       case "SYNC_MURID":
@@ -373,6 +381,10 @@ function doPost(e) {
       case "ADD_ADMIN":
       case "UPDATE_ADMIN":
         return handleSaveAdmin(ss, data);
+
+      // 7b. Hapus Admin dari Spreadsheet
+      case "DELETE_ADMIN":
+        return handleDeleteAdmin(ss, data);
 
       // 8. Sinkronisasi Penuh
       case "SYNC_ALL":
@@ -480,6 +492,124 @@ function handleRecordAttendance(ss, item) {
       jarak: jarakVal,
       maps: mapsUrl
     }
+  });
+}
+
+/**
+ * Hapus satu riwayat absensi dari tab "ABSENSI" berdasarkan ID_ABSENSI
+ */
+function handleDeleteAttendance(ss, data) {
+  if (!data || (!data.id && !data.idAbsensi)) {
+    return responseJSON({ success: false, message: "ID Absensi wajib diisi." });
+  }
+
+  var targetId = String(data.id || data.idAbsensi).trim();
+  var sheet = ss.getSheetByName("ABSENSI");
+  if (!sheet || sheet.getLastRow() <= 1) {
+    return responseJSON({ success: true, message: "Tab ABSENSI kosong atau tidak ada data." });
+  }
+
+  var lastRow = sheet.getLastRow();
+  var values = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  var deletedCount = 0;
+
+  for (var i = values.length - 1; i >= 0; i--) {
+    var rowId = String(values[i][0] || "").trim();
+    if (rowId === targetId) {
+      sheet.deleteRow(i + 2);
+      deletedCount++;
+    }
+  }
+
+  SpreadsheetApp.flush();
+
+  return responseJSON({
+    success: true,
+    message: deletedCount > 0
+      ? ("Berhasil menghapus " + deletedCount + " baris absensi (" + targetId + ") dari Spreadsheet.")
+      : ("Data absensi ID " + targetId + " tidak ditemukan di Spreadsheet."),
+    deletedCount: deletedCount
+  });
+}
+
+/**
+ * Hapus murid dari tab "MURID" berdasarkan ID atau NIS
+ */
+function handleDeleteMurid(ss, data) {
+  if (!data || (!data.id && !data.nis)) {
+    return responseJSON({ success: false, message: "ID atau NIS murid wajib diisi." });
+  }
+
+  var targetId = data.id ? String(data.id).trim() : "";
+  var targetNis = data.nis ? String(data.nis).trim().toUpperCase() : "";
+
+  var sheet = ss.getSheetByName("MURID");
+  if (!sheet || sheet.getLastRow() <= 1) {
+    return responseJSON({ success: true, message: "Tab MURID kosong." });
+  }
+
+  var lastRow = sheet.getLastRow();
+  var values = sheet.getRange(2, 1, lastRow - 1, 2).getValues(); // col 1: ID, col 2: NIS
+  var deletedCount = 0;
+
+  for (var i = values.length - 1; i >= 0; i--) {
+    var rowId = String(values[i][0] || "").trim();
+    var rowNis = String(values[i][1] || "").trim().toUpperCase();
+    if ((targetId && rowId === targetId) || (targetNis && rowNis === targetNis)) {
+      sheet.deleteRow(i + 2);
+      deletedCount++;
+    }
+  }
+
+  SpreadsheetApp.flush();
+
+  return responseJSON({
+    success: true,
+    message: deletedCount > 0
+      ? ("Berhasil menghapus murid dari Spreadsheet.")
+      : ("Data murid tidak ditemukan di Spreadsheet."),
+    deletedCount: deletedCount
+  });
+}
+
+/**
+ * Hapus admin dari tab "ADMIN"
+ */
+function handleDeleteAdmin(ss, data) {
+  if (!data || (!data.id && !data.email && !data.username)) {
+    return responseJSON({ success: false, message: "ID, email, atau username admin wajib diisi." });
+  }
+
+  var sheet = ss.getSheetByName("ADMIN");
+  if (!sheet || sheet.getLastRow() <= 1) {
+    return responseJSON({ success: true, message: "Tab ADMIN kosong." });
+  }
+
+  var lastRow = sheet.getLastRow();
+  var values = sheet.getRange(2, 1, lastRow - 1, 3).getValues();
+  var deletedCount = 0;
+
+  for (var i = values.length - 1; i >= 0; i--) {
+    var rowId = String(values[i][0] || "").trim();
+    var rowUser = String(values[i][1] || "").trim().toLowerCase();
+    var rowEmail = String(values[i][2] || "").trim().toLowerCase();
+
+    if (
+      (data.id && rowId === String(data.id)) ||
+      (data.username && rowUser === String(data.username).toLowerCase()) ||
+      (data.email && rowEmail === String(data.email).toLowerCase())
+    ) {
+      sheet.deleteRow(i + 2);
+      deletedCount++;
+    }
+  }
+
+  SpreadsheetApp.flush();
+
+  return responseJSON({
+    success: true,
+    message: deletedCount > 0 ? "Berhasil menghapus admin dari Spreadsheet." : "Data admin tidak ditemukan di Spreadsheet.",
+    deletedCount: deletedCount
   });
 }
 

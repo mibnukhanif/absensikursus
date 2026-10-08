@@ -1060,21 +1060,19 @@ export const AdminPengaturanPage: React.FC = () => {
               <button
                 type="button"
                 onClick={async () => {
-                  if (!settings.googleSheetsScriptUrl) {
-                    alert('Harap isi URL Web App Google Apps Script terlebih dahulu.');
-                    return;
-                  }
                   try {
-                    const res = await apiRequest('/api/admin/sheets/pull-users', { method: 'POST' });
-                    alert(res.message || 'Berhasil menarik akun dari spreadsheet.');
+                    const res = await apiRequest('/api/admin/sheets/pull-all', { method: 'POST' });
+                    alert(res.message || 'Sinkronisasi dua arah berhasil!');
                     fetchData();
+                    await fetchPublicInfo();
                   } catch (e: any) {
                     alert('Terjadi kesalahan: ' + e.message);
                   }
                 }}
                 className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-semibold rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer"
+                title="Tarik seluruh data (Absensi, Murid, Admin, Pengaturan) dari Google Spreadsheet"
               >
-                <Download className="w-3.5 h-3.5" /> Tarik Akun dari Spreadsheet
+                <Download className="w-3.5 h-3.5" /> Tarik Semua Data dari Spreadsheet
               </button>
 
               <button

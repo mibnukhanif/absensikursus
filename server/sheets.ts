@@ -201,6 +201,105 @@ export function asyncMirrorAttendanceToSheets(record: AttendanceRecord) {
 }
 
 /**
+ * Catat presensi langsung ke Google Spreadsheet secara synchronous
+ */
+export async function syncAttendanceDirectToSheets(
+  record: AttendanceRecord
+): Promise<{ success: boolean; message: string; data?: any }> {
+  const payload = {
+    id: record.id,
+    muridId: record.muridId,
+    nis: record.nis,
+    nama: record.nama,
+    kelas: record.kelas,
+    tanggal: record.tanggal,
+    jam: record.jam,
+    shift: record.shift || 'Shift Reguler',
+    status: record.status,
+    latitude: (record.latitude !== null && record.latitude !== undefined) ? Number(record.latitude) : '',
+    longitude: (record.longitude !== null && record.longitude !== undefined) ? Number(record.longitude) : '',
+    accuracy: record.accuracy || '',
+    jarakMeter: (record.jarakMeter !== null && record.jarakMeter !== undefined) ? Number(record.jarakMeter) : '',
+    lokasiStatus: record.lokasiStatus || '',
+    mapsUrl: record.mapsUrl || (record.latitude && record.longitude ? `https://www.google.com/maps?q=${record.latitude},${record.longitude}` : ''),
+    qrId: record.qrId,
+    timestamp: record.timestamp
+  };
+
+  return await sendToGoogleSheets('RECORD_ATTENDANCE', payload);
+}
+
+/**
+ * Hapus data presensi dari Google Spreadsheet tab ABSENSI
+ */
+export async function deleteAttendanceFromSheets(
+  id: string
+): Promise<{ success: boolean; message: string; data?: any }> {
+  // 1. Coba panggil DELETE_ATTENDANCE
+  const res = await sendToGoogleSheets('DELETE_ATTENDANCE', { id });
+  if (res.success) {
+    return res;
+  }
+
+  // 2. Fallback: gunakan SYNC_ALL dengan sisa data absensi terbaru
+  try {
+    const fallbackRes = await sendToGoogleSheets('SYNC_ALL', {
+      attendance: db.getAttendance()
+    });
+    if (fallbackRes.success) {
+      return {
+        success: true,
+        message: 'Tab ABSENSI di Google Spreadsheet berhasil diperbarui.'
+      };
+    }
+  } catch (err: any) {
+    console.warn('[FALLBACK SYNC_ALL ERROR]', err.message);
+  }
+
+  return res;
+}
+
+/**
+ * Hapus murid dari Google Spreadsheet tab MURID
+ */
+export async function deleteMuridFromSheets(
+  id: string,
+  nis?: string
+): Promise<{ success: boolean; message: string; data?: any }> {
+  // 1. Coba panggil DELETE_MURID
+  const res = await sendToGoogleSheets('DELETE_MURID', { id, nis });
+  if (res.success) {
+    return res;
+  }
+
+  // 2. Fallback: gunakan SYNC_MURID dengan daftar murid aktif saat ini
+  try {
+    const fallbackRes = await sendToGoogleSheets('SYNC_MURID', db.getMuridList());
+    if (fallbackRes.success) {
+      return {
+        success: true,
+        message: 'Tab MURID di Google Spreadsheet berhasil diperbarui.'
+      };
+    }
+  } catch (err: any) {
+    console.warn('[FALLBACK SYNC_MURID ERROR]', err.message);
+  }
+
+  return res;
+}
+
+/**
+ * Hapus admin dari Google Spreadsheet tab ADMIN
+ */
+export async function deleteAdminFromSheets(
+  id: string,
+  email?: string,
+  username?: string
+): Promise<{ success: boolean; message: string; data?: any }> {
+  return await sendToGoogleSheets('DELETE_ADMIN', { id, email, username });
+}
+
+/**
  * Simpan data murid langsung ke Google Spreadsheet secara synchronous
  */
 export async function syncMuridDirectToSheets(

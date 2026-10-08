@@ -327,6 +327,14 @@ class Database {
     return this.data.admins[idx];
   }
 
+  public deleteAdmin(id: string): boolean {
+    const idx = this.data.admins.findIndex((a) => a.id === id);
+    if (idx === -1) return false;
+    this.data.admins.splice(idx, 1);
+    this.save();
+    return true;
+  }
+
   // --- Murid Queries ---
   public getMuridList(includeDeleted = false): MuridUser[] {
     if (includeDeleted) return this.data.murid;
@@ -386,6 +394,24 @@ class Database {
 
   public addAttendance(record: AttendanceRecord) {
     this.data.attendance.push(record);
+    this.save();
+  }
+
+  public deleteAttendance(id: string): boolean {
+    const idx = this.data.attendance.findIndex((a) => a.id === id);
+    if (idx === -1) return false;
+    this.data.attendance.splice(idx, 1);
+    this.save();
+    return true;
+  }
+
+  public setAttendanceList(list: AttendanceRecord[]) {
+    this.data.attendance = list;
+    this.save();
+  }
+
+  public setMuridList(list: MuridUser[]) {
+    this.data.murid = list;
     this.save();
   }
 

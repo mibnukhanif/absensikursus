@@ -70,6 +70,7 @@ export const AdminMuridPage: React.FC = () => {
 
   useEffect(() => {
     fetchMurid();
+    handleSyncSheets();
   }, [kelasFilter, statusFilter]);
 
   const handleSyncSheets = async () => {
