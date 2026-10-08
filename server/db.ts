@@ -87,8 +87,12 @@ interface DatabaseSchema {
   auditLogs: AuditLog[];
 }
 
-const DB_DIR = path.resolve(process.cwd(), 'data');
+const isVercel = !!process.env.VERCEL;
+const DB_DIR = isVercel
+  ? path.resolve('/tmp', 'data')
+  : path.resolve(process.cwd(), 'data');
 const DB_FILE = path.resolve(DB_DIR, 'db.json');
+const SEED_FILE = path.resolve(process.cwd(), 'data', 'db.json');
 
 const DEFAULT_SETTINGS: SystemSettings = {
   appName: 'DIGITALMEERA ABSENSI',
@@ -127,6 +131,14 @@ class Database {
     try {
       if (!fs.existsSync(DB_DIR)) {
         fs.mkdirSync(DB_DIR, { recursive: true });
+      }
+
+      if (isVercel && !fs.existsSync(DB_FILE) && fs.existsSync(SEED_FILE)) {
+        try {
+          fs.copyFileSync(SEED_FILE, DB_FILE);
+        } catch (copyErr) {
+          console.warn('Could not copy seed DB to /tmp:', copyErr);
+        }
       }
 
       if (fs.existsSync(DB_FILE)) {
