@@ -53,6 +53,66 @@ export async function sendToGoogleSheets(
 }
 
 /**
+ * Verifikasi login Admin langsung ke Google Apps Script / Spreadsheet
+ */
+export async function verifyAdminWithSheets(
+  identifier: string,
+  password: string
+): Promise<{ success: boolean; admin?: any; message?: string }> {
+  try {
+    const result = await sendToGoogleSheets('VERIFY_ADMIN_LOGIN', { identifier, password });
+    if (result.success && result.data && result.data.admin) {
+      return { success: true, admin: result.data.admin };
+    }
+    return { success: false, message: result.message || 'Kredensial tidak cocok di Spreadsheet.' };
+  } catch (err: any) {
+    return { success: false, message: err.message };
+  }
+}
+
+/**
+ * Verifikasi login Murid langsung ke Google Apps Script / Spreadsheet
+ */
+export async function verifyMuridWithSheets(
+  identifier: string,
+  password: string
+): Promise<{ success: boolean; murid?: any; message?: string }> {
+  try {
+    const result = await sendToGoogleSheets('VERIFY_MURID_LOGIN', { identifier, password });
+    if (result.success && result.data && result.data.murid) {
+      return { success: true, murid: result.data.murid };
+    }
+    return { success: false, message: result.message || 'Kredensial tidak cocok di Spreadsheet.' };
+  } catch (err: any) {
+    return { success: false, message: err.message };
+  }
+}
+
+/**
+ * Tarik seluruh akun Admin dan Murid dari Google Spreadsheet
+ */
+export async function pullUsersFromSheets(): Promise<{
+  success: boolean;
+  admins?: any[];
+  murid?: any[];
+  message?: string;
+}> {
+  try {
+    const result = await sendToGoogleSheets('GET_USERS', {});
+    if (result.success && result.data && result.data.data) {
+      return {
+        success: true,
+        admins: result.data.data.admins || [],
+        murid: result.data.data.murid || []
+      };
+    }
+    return { success: false, message: result.message || 'Gagal mengambil data user dari spreadsheet.' };
+  } catch (err: any) {
+    return { success: false, message: err.message };
+  }
+}
+
+/**
  * Mirror attendance record to Google Sheets asynchronously
  */
 export function asyncMirrorAttendanceToSheets(record: AttendanceRecord) {
@@ -84,10 +144,14 @@ export function asyncSyncMuridToSheets(murid: MuridUser | MuridUser[]) {
 }
 
 /**
- * Sync admin account to Google Sheets asynchronously
+ * Sync admin account to Google Sheets asynchronously (dengan opsi password plain untuk kemudahan spreadsheet)
  */
-export function asyncSyncAdminToSheets(admin: AdminUser) {
-  sendToGoogleSheets('ADD_ADMIN', admin)
+export function asyncSyncAdminToSheets(admin: AdminUser, plainPassword?: string) {
+  const payload = {
+    ...admin,
+    password: plainPassword || ''
+  };
+  sendToGoogleSheets('ADD_ADMIN', payload)
     .then((result) => {
       if (result.success) {
         console.log(`[SHEETS SYNC] Berhasil simpan data admin ke Spreadsheet.`);

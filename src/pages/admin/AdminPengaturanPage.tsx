@@ -17,7 +17,8 @@ import {
   Lock,
   History,
   AlertCircle,
-  Info
+  Info,
+  Download
 } from 'lucide-react';
 
 export const AdminPengaturanPage: React.FC = () => {
@@ -517,9 +518,29 @@ export const AdminPengaturanPage: React.FC = () => {
                     alert('Terjadi kesalahan: ' + e.message);
                   }
                 }}
-                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl text-xs transition flex items-center gap-1.5"
+                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer"
               >
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Uji Koneksi Script
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!settings.googleSheetsScriptUrl) {
+                    alert('Harap isi URL Web App Google Apps Script terlebih dahulu.');
+                    return;
+                  }
+                  try {
+                    const res = await apiRequest('/api/admin/sheets/pull-users', { method: 'POST' });
+                    alert(res.message || 'Berhasil menarik akun dari spreadsheet.');
+                    fetchData();
+                  } catch (e: any) {
+                    alert('Terjadi kesalahan: ' + e.message);
+                  }
+                }}
+                className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-semibold rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" /> Tarik Akun dari Spreadsheet
               </button>
 
               <button
@@ -536,9 +557,9 @@ export const AdminPengaturanPage: React.FC = () => {
                     alert('Terjadi kesalahan: ' + e.message);
                   }
                 }}
-                className="px-3.5 py-2 bg-indigo-600/80 hover:bg-indigo-600 text-white font-semibold rounded-xl text-xs transition flex items-center gap-1.5"
+                className="px-3.5 py-2 bg-indigo-600/80 hover:bg-indigo-600 text-white font-semibold rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer"
               >
-                <FileSpreadsheet className="w-3.5 h-3.5" /> Sinkronkan Seluruh Data Sekarang
+                <FileSpreadsheet className="w-3.5 h-3.5" /> Kirim Seluruh Data ke Spreadsheet
               </button>
             </div>
           </div>

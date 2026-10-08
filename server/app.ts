@@ -23,7 +23,10 @@ import {
   asyncSyncMuridToSheets,
   asyncSyncAdminToSheets,
   asyncSyncSettingsToSheets,
-  sendToGoogleSheets
+  sendToGoogleSheets,
+  verifyAdminWithSheets,
+  verifyMuridWithSheets,
+  pullUsersFromSheets
 } from './sheets.js';
 
 dotenv.config();
@@ -157,7 +160,48 @@ router.post('/auth/login', async (req: Request, res: Response) => {
     }
 
     const cleanIdentifier = identifier.trim();
-    const murid = db.findMuridByUsername(cleanIdentifier) || db.findMuridByNIS(cleanIdentifier);
+    let murid = db.findMuridByUsername(cleanIdentifier) || db.findMuridByNIS(cleanIdentifier);
+    let validPassword = false;
+
+    if (murid) {
+      validPassword = await verifyPassword(password, murid.passwordHash);
+    }
+
+    // Jika belum ditemukan di lokal atau password tidak cocok, cek langsung ke Spreadsheet / Code.gs
+    if (!murid || !validPassword) {
+      try {
+        const sheetsCheck = await verifyMuridWithSheets(cleanIdentifier, password);
+        if (sheetsCheck.success && sheetsCheck.murid) {
+          const passwordHash = await hashPassword(password);
+          if (murid) {
+            murid = db.updateMurid(murid.id, {
+              nama: sheetsCheck.murid.nama || murid.nama,
+              kelas: sheetsCheck.murid.kelas || murid.kelas,
+              passwordHash,
+              status: sheetsCheck.murid.status || 'aktif'
+            })!;
+          } else {
+            murid = {
+              id: sheetsCheck.murid.id || ('murid-' + sheetsCheck.murid.nis),
+              nis: String(sheetsCheck.murid.nis),
+              nama: sheetsCheck.murid.nama || 'Murid Digitalmeera',
+              kelas: sheetsCheck.murid.kelas || 'Umum',
+              username: sheetsCheck.murid.username || sheetsCheck.murid.nis,
+              passwordHash,
+              noHp: sheetsCheck.murid.noHp || '',
+              status: 'aktif',
+              tanggalDaftar: new Date().toISOString().split('T')[0],
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            };
+            db.addMurid(murid);
+          }
+          validPassword = true;
+        }
+      } catch (sheetsErr) {
+        console.warn('Fallback check to Google Sheets failed:', sheetsErr);
+      }
+    }
 
     if (!murid) {
       return res.status(404).json({
@@ -175,7 +219,6 @@ router.post('/auth/login', async (req: Request, res: Response) => {
       });
     }
 
-    const validPassword = await verifyPassword(password, murid.passwordHash);
     if (!validPassword) {
       return res.status(401).json({
         success: false,
@@ -231,16 +274,47 @@ router.post('/auth/admin-login', async (req: Request, res: Response) => {
       });
     }
 
-    const admin = db.findAdminByEmailOrUsername(identifier);
-    if (!admin) {
-      return res.status(401).json({
-        success: false,
-        message: 'Email/Username atau password admin salah.'
-      });
+    let admin = db.findAdminByEmailOrUsername(identifier);
+    let validPassword = false;
+
+    if (admin) {
+      validPassword = await verifyPassword(password, admin.passwordHash);
     }
 
-    const validPassword = await verifyPassword(password, admin.passwordHash);
-    if (!validPassword) {
+    // Jika belum ditemukan di database atau password beda, verifikasi langsung ke Google Spreadsheet / Apps Script
+    if (!admin || !validPassword) {
+      try {
+        const sheetsCheck = await verifyAdminWithSheets(identifier, password);
+        if (sheetsCheck.success && sheetsCheck.admin) {
+          const passwordHash = await hashPassword(password);
+          if (admin) {
+            admin = db.updateAdmin(admin.id, {
+              username: sheetsCheck.admin.username || admin.username,
+              email: sheetsCheck.admin.email || admin.email,
+              name: sheetsCheck.admin.name || admin.name,
+              passwordHash
+            })!;
+          } else {
+            admin = {
+              id: sheetsCheck.admin.id || ('admin-' + Date.now()),
+              username: sheetsCheck.admin.username || 'admin',
+              email: sheetsCheck.admin.email || 'digitalmeera.com@gmail.com',
+              name: sheetsCheck.admin.name || 'Administrator Utama',
+              passwordHash,
+              role: 'super_admin',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            };
+            db.addAdmin(admin);
+          }
+          validPassword = true;
+        }
+      } catch (sheetsErr) {
+        console.warn('Fallback admin check to Google Sheets failed:', sheetsErr);
+      }
+    }
+
+    if (!admin || !validPassword) {
       return res.status(401).json({
         success: false,
         message: 'Email/Username atau password admin salah.'
@@ -977,8 +1051,8 @@ router.put('/admin/profile', authenticateToken, requireAdmin, async (req: Authen
       return res.status(500).json({ success: false, message: 'Gagal memperbarui data admin.' });
     }
 
-    // Sinkronkan akun admin ke tab "ADMIN" di Google Spreadsheet
-    asyncSyncAdminToSheets(updated);
+    // Sinkronkan akun admin ke tab "ADMIN" di Google Spreadsheet dengan password terbaru
+    asyncSyncAdminToSheets(updated, newPassword || currentPassword);
 
     db.logAction(
       updated.name,
@@ -1036,6 +1110,105 @@ router.post('/admin/sheets/sync-all', authenticateToken, requireAdmin, async (re
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ success: false, message: 'Gagal sinkronisasi data: ' + err.message });
+  }
+});
+
+// Admin: Tarik Akun (Admin & Murid) dari Google Spreadsheet
+router.post('/admin/sheets/pull-users', authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const pullResult = await pullUsersFromSheets();
+    if (!pullResult.success) {
+      return res.status(400).json({
+        success: false,
+        message: pullResult.message || 'Gagal menarik data dari Google Spreadsheet.'
+      });
+    }
+
+    let importedAdminCount = 0;
+    let importedMuridCount = 0;
+
+    // Proses Admin
+    if (pullResult.admins && Array.isArray(pullResult.admins)) {
+      for (const a of pullResult.admins) {
+        if (!a.username && !a.email) continue;
+        const existing = db.findAdminByEmailOrUsername(a.username || a.email);
+        const passHash = a.password ? await hashPassword(String(a.password)) : (existing ? existing.passwordHash : await hashPassword('admin12345'));
+        if (existing) {
+          db.updateAdmin(existing.id, {
+            name: a.name || existing.name,
+            username: a.username || existing.username,
+            email: a.email || existing.email,
+            passwordHash: passHash,
+            role: a.role || existing.role
+          });
+        } else {
+          db.addAdmin({
+            id: a.id || ('admin-' + Date.now()),
+            name: a.name || 'Administrator',
+            username: a.username || 'admin',
+            email: a.email || 'admin@digitalmeera.edu',
+            passwordHash: passHash,
+            role: a.role || 'admin',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+        }
+        importedAdminCount++;
+      }
+    }
+
+    // Proses Murid
+    if (pullResult.murid && Array.isArray(pullResult.murid)) {
+      for (const m of pullResult.murid) {
+        if (!m.nis) continue;
+        const existing = db.findMuridByNIS(m.nis);
+        const passHash = m.password ? await hashPassword(String(m.password)) : (existing ? existing.passwordHash : await hashPassword(String(m.nis)));
+        if (existing) {
+          db.updateMurid(existing.id, {
+            nama: m.nama || existing.nama,
+            kelas: m.kelas || existing.kelas,
+            username: m.username || existing.username,
+            passwordHash: passHash,
+            noHp: m.noHp || existing.noHp,
+            status: m.status || 'aktif'
+          });
+        } else {
+          db.addMurid({
+            id: m.id || ('murid-' + m.nis),
+            nis: String(m.nis),
+            nama: m.nama || 'Murid Digitalmeera',
+            kelas: m.kelas || 'Umum',
+            username: m.username || String(m.nis),
+            passwordHash: passHash,
+            noHp: m.noHp || '',
+            status: m.status || 'aktif',
+            tanggalDaftar: m.tanggalDaftar || new Date().toISOString().split('T')[0],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+        }
+        importedMuridCount++;
+      }
+    }
+
+    db.logAction(
+      req.user!.name,
+      'admin',
+      'Tarik User Spreadsheet',
+      `Berhasil memperbarui ${importedAdminCount} admin dan ${importedMuridCount} murid dari Google Spreadsheet.`
+    );
+
+    res.json({
+      success: true,
+      message: `Berhasil menyinkronkan ${importedAdminCount} admin dan ${importedMuridCount} murid dari Google Spreadsheet!`,
+      data: {
+        importedAdminCount,
+        importedMuridCount
+      }
+    });
+  } catch (err: any) {
+    console.error('Error pulling users from sheets:', err);
+    res.status(500).json({ success: false, message: 'Gagal menarik data user: ' + err.message });
   }
 });
 

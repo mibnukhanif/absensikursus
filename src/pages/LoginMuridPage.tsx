@@ -66,6 +66,29 @@ export const LoginMuridPage: React.FC<LoginMuridPageProps> = ({ onNavigate }) =>
             </p>
           </div>
 
+          {/* Quick Murid Hint Box */}
+          <div className="mb-5 p-3 rounded-2xl bg-emerald-950/50 border border-emerald-800/40 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-emerald-300 flex items-center gap-1.5">
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-400" /> Contoh Akun Murid:
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setIdentifier('1001');
+                  setPassword('1001');
+                }}
+                className="text-[11px] px-2 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition cursor-pointer"
+              >
+                Isi Otomatis
+              </button>
+            </div>
+            <div className="mt-1.5 text-slate-300 font-mono text-[11px] flex flex-wrap gap-x-3 gap-y-0.5">
+              <span>NIS: <strong className="text-white">1001</strong> (Ahmad Fauzi)</span>
+              <span>Pass: <strong className="text-white">1001</strong></span>
+            </div>
+          </div>
+
           {/* Error Notice */}
           {errorMessage && (
             <div className="mb-5 p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-200 text-xs flex items-start gap-2.5">

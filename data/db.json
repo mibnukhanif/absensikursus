@@ -1,17 +1,44 @@
 {
   "admins": [
     {
-      "id": "admin-1791432028175",
+      "id": "admin-primary",
       "email": "digitalmeera.com@gmail.com",
-      "username": "digitalmeera.com",
+      "username": "admin",
       "name": "Administrator Utama",
-      "passwordHash": "$2b$10$dCwSq6KNlC0Pj9in.f4BPO6vbEwPgp6/QEfo//XHjgWgBOK6xo/5W",
+      "passwordHash": "$2b$10$MXa2bk6vjixer0JXozxz7um3PV03nD3ehd0uV5m/1mlZFnKf6JUEO",
       "role": "super_admin",
-      "createdAt": "2026-10-08T04:00:28.175Z",
-      "updatedAt": "2026-10-08T04:00:28.175Z"
+      "createdAt": "2026-10-08T00:00:00.000Z",
+      "updatedAt": "2026-10-08T00:00:00.000Z"
     }
   ],
-  "murid": [],
+  "murid": [
+    {
+      "id": "murid-1001",
+      "nis": "1001",
+      "nama": "Ahmad Fauzi",
+      "kelas": "XII IPA 1",
+      "username": "1001",
+      "passwordHash": "$2b$10$2/3IgDo94S1R3guFtCJKC.q.CK/n3fAO/oM67LRCxvU/nfiKaIVsC",
+      "noHp": "081234567891",
+      "status": "aktif",
+      "tanggalDaftar": "2026-10-08",
+      "createdAt": "2026-10-08T00:00:00.000Z",
+      "updatedAt": "2026-10-08T00:00:00.000Z"
+    },
+    {
+      "id": "murid-1002",
+      "nis": "1002",
+      "nama": "Siti Rahmawati",
+      "kelas": "XII IPA 1",
+      "username": "1002",
+      "passwordHash": "$2b$10$Pu.jr/fn5.2m.EWh65j2dODw.iVWy0RbzvOTPd9OuLKHn5Cb2gBzS",
+      "noHp": "081234567892",
+      "status": "aktif",
+      "tanggalDaftar": "2026-10-08",
+      "createdAt": "2026-10-08T00:00:00.000Z",
+      "updatedAt": "2026-10-08T00:00:00.000Z"
+    }
+  ],
   "attendance": [],
   "qrCode": {
     "id": "qr-primary-1",
@@ -27,7 +54,7 @@
     "institutionName": "Lembaga Pendidikan Digitalmeera",
     "institutionAddress": "Jl. Merdeka Digital No. 88, Indonesia",
     "adminWhatsApp": "081234567890",
-    "adminEmail": "admin@digitalmeera.edu",
+    "adminEmail": "digitalmeera.com@gmail.com",
     "jamMasuk": "07:30",
     "jamPulang": "15:00",
     "footerText": "© 2026 DIGITALMEERA. Hak Cipta Dilindungi.",
@@ -39,28 +66,20 @@
   },
   "auditLogs": [
     {
-      "id": "log-1791432153522-gybtr",
+      "id": "log-1791437151702-xwrwn",
       "actor": "Administrator Utama",
       "role": "admin",
       "action": "Login Admin",
       "details": "Admin digitalmeera.com@gmail.com berhasil masuk ke dashboard.",
-      "timestamp": "2026-10-08T04:02:33.522Z"
+      "timestamp": "2026-10-08T05:25:51.702Z"
     },
     {
-      "id": "log-1791432085727-jz896",
-      "actor": "Administrator Utama",
-      "role": "admin",
-      "action": "Login Admin",
-      "details": "Admin digitalmeera.com@gmail.com berhasil masuk ke dashboard.",
-      "timestamp": "2026-10-08T04:01:25.727Z"
-    },
-    {
-      "id": "log-1791432028175-8pt74",
+      "id": "log-initial-bootstrap",
       "actor": "System Bootstrap",
       "role": "system",
-      "action": "Bootstrap Admin",
-      "details": "Initial admin created from environment variables for digitalmeera.com@gmail.com",
-      "timestamp": "2026-10-08T04:00:28.175Z"
+      "action": "Inisialisasi Kredensial",
+      "details": "Admin default (admin / admin12345) dan Murid contoh (1001 & 1002) berhasil disiapkan.",
+      "timestamp": "2026-10-08T00:00:00.000Z"
     }
   ]
 }

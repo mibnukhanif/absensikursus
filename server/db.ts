@@ -120,6 +120,46 @@ const DEFAULT_QR_CONFIG: QRCodeConfig = {
   updatedAt: new Date().toISOString()
 };
 
+const DEFAULT_PRIMARY_ADMIN: AdminUser = {
+  id: 'admin-primary',
+  email: 'digitalmeera.com@gmail.com',
+  username: 'admin',
+  name: 'Administrator Utama',
+  passwordHash: '$2b$10$MXa2bk6vjixer0JXozxz7um3PV03nD3ehd0uV5m/1mlZFnKf6JUEO', // admin12345
+  role: 'super_admin',
+  createdAt: '2026-10-08T00:00:00.000Z',
+  updatedAt: '2026-10-08T00:00:00.000Z'
+};
+
+const DEFAULT_SAMPLE_MURID: MuridUser[] = [
+  {
+    id: 'murid-1001',
+    nis: '1001',
+    nama: 'Ahmad Fauzi',
+    kelas: 'XII IPA 1',
+    username: '1001',
+    passwordHash: '$2b$10$2/3IgDo94S1R3guFtCJKC.q.CK/n3fAO/oM67LRCxvU/nfiKaIVsC', // 1001
+    noHp: '081234567891',
+    status: 'aktif',
+    tanggalDaftar: '2026-10-08',
+    createdAt: '2026-10-08T00:00:00.000Z',
+    updatedAt: '2026-10-08T00:00:00.000Z'
+  },
+  {
+    id: 'murid-1002',
+    nis: '1002',
+    nama: 'Siti Rahmawati',
+    kelas: 'XII IPA 1',
+    username: '1002',
+    passwordHash: '$2b$10$Pu.jr/fn5.2m.EWh65j2dODw.iVWy0RbzvOTPd9OuLKHn5Cb2gBzS', // 1002
+    noHp: '081234567892',
+    status: 'aktif',
+    tanggalDaftar: '2026-10-08',
+    createdAt: '2026-10-08T00:00:00.000Z',
+    updatedAt: '2026-10-08T00:00:00.000Z'
+  }
+];
+
 class Database {
   private data: DatabaseSchema;
 
@@ -144,9 +184,12 @@ class Database {
       if (fs.existsSync(DB_FILE)) {
         const raw = fs.readFileSync(DB_FILE, 'utf-8');
         const parsed = JSON.parse(raw);
+        const admins = (parsed.admins && parsed.admins.length > 0) ? parsed.admins : [DEFAULT_PRIMARY_ADMIN];
+        const murid = (parsed.murid && parsed.murid.length > 0) ? parsed.murid : DEFAULT_SAMPLE_MURID;
+
         return {
-          admins: parsed.admins || [],
-          murid: parsed.murid || [],
+          admins,
+          murid,
           attendance: parsed.attendance || [],
           qrCode: parsed.qrCode || DEFAULT_QR_CONFIG,
           settings: parsed.settings || DEFAULT_SETTINGS,
@@ -158,8 +201,8 @@ class Database {
     }
 
     const initial: DatabaseSchema = {
-      admins: [],
-      murid: [],
+      admins: [DEFAULT_PRIMARY_ADMIN],
+      murid: DEFAULT_SAMPLE_MURID,
       attendance: [],
       qrCode: DEFAULT_QR_CONFIG,
       settings: DEFAULT_SETTINGS,

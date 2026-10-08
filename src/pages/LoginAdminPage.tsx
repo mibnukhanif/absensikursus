@@ -66,6 +66,32 @@ export const LoginAdminPage: React.FC<LoginAdminPageProps> = ({ onNavigate }) =>
             </p>
           </div>
 
+          {/* Quick Credential Hint Box */}
+          <div className="mb-5 p-3 rounded-2xl bg-indigo-950/50 border border-indigo-800/40 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-indigo-300 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> Kredensial Default:
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setIdentifier('admin');
+                  setPassword('admin12345');
+                }}
+                className="text-[11px] px-2 py-0.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium transition cursor-pointer"
+              >
+                Isi Otomatis
+              </button>
+            </div>
+            <div className="mt-1.5 text-slate-300 font-mono text-[11px] flex flex-wrap gap-x-3 gap-y-0.5">
+              <span>User: <strong className="text-white">admin</strong></span>
+              <span>Pass: <strong className="text-white">admin12345</strong></span>
+            </div>
+            <p className="mt-1 text-[10px] text-slate-400">
+              *Tersimpan di Spreadsheet & Code.gs. Dapat diubah kapan saja.
+            </p>
+          </div>
+
           {/* Setup notice if no admin */}
           {!hasAdmin && (
             <div className="mb-5 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs">
