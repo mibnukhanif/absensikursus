@@ -28,6 +28,15 @@ export interface MuridUser {
   isDeleted?: boolean;
 }
 
+export interface PresensiShift {
+  id: string;
+  nama: string;
+  jamMasuk: string;
+  jamPulang: string;
+  toleransiMenit?: number;
+  aktif: boolean;
+}
+
 export interface AttendanceRecord {
   id: string;
   muridId: string;
@@ -37,6 +46,13 @@ export interface AttendanceRecord {
   tanggal: string; // YYYY-MM-DD
   jam: string;     // HH:mm:ss
   status: 'Hadir' | 'Terlambat' | 'Izin' | 'Sakit';
+  shift?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  accuracy?: number | null;
+  jarakMeter?: number | null;
+  lokasiStatus?: 'Sesuai Radius' | 'Luar Radius' | 'Lokasi Tidak Terdeteksi';
+  mapsUrl?: string;
   qrId: string;
   timestamp: number;
   createdAt: string;
@@ -61,12 +77,37 @@ export interface SystemSettings {
   adminEmail: string;
   jamMasuk: string; // e.g. "07:30"
   jamPulang: string; // e.g. "15:00"
+  shifts: PresensiShift[];
+  targetLatitude: number;
+  targetLongitude: number;
+  radiusMeters: number;
+  enforceLocation: boolean;
   footerText: string;
   googleSheetsId?: string;
   googleSheetsScriptUrl?: string;
   googleSheetsSecretToken?: string;
   googleSheetsSyncEnabled?: boolean;
   updatedAt: string;
+}
+
+export function calculateDistanceMeters(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const R = 6371e3; // Earth radius in meters
+  const phi1 = (lat1 * Math.PI) / 180;
+  const phi2 = (lat2 * Math.PI) / 180;
+  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
+  const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+    Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return Math.round(R * c);
 }
 
 export interface AuditLog {
@@ -94,6 +135,25 @@ const DB_DIR = isVercel
 const DB_FILE = path.resolve(DB_DIR, 'db.json');
 const SEED_FILE = path.resolve(process.cwd(), 'data', 'db.json');
 
+export const DEFAULT_SHIFTS: PresensiShift[] = [
+  {
+    id: 'shift-pagi',
+    nama: 'Shift Pagi / Reguler',
+    jamMasuk: '07:30',
+    jamPulang: '15:00',
+    toleransiMenit: 0,
+    aktif: true
+  },
+  {
+    id: 'shift-siang',
+    nama: 'Shift Siang',
+    jamMasuk: '12:30',
+    jamPulang: '17:30',
+    toleransiMenit: 0,
+    aktif: true
+  }
+];
+
 const DEFAULT_SETTINGS: SystemSettings = {
   appName: 'DIGITALMEERA ABSENSI',
   subTitle: 'Sistem Absensi Digital Berbasis QR Code',
@@ -103,6 +163,11 @@ const DEFAULT_SETTINGS: SystemSettings = {
   adminEmail: 'admin@digitalmeera.edu',
   jamMasuk: '07:30',
   jamPulang: '15:00',
+  shifts: DEFAULT_SHIFTS,
+  targetLatitude: -6.200000,
+  targetLongitude: 106.816666,
+  radiusMeters: 100,
+  enforceLocation: false,
   footerText: '© 2026 DIGITALMEERA. Hak Cipta Dilindungi.',
   googleSheetsId: '1Mv6cw3CrjCVW7o42lM87iN98D0i0p4ClaCCHrg9i1Ek',
   googleSheetsScriptUrl: 'https://script.google.com/macros/s/AKfycbybSkJPMQvRtFQFLhKyb76R1mxWPxM6N5kuhV4oGAhhQMuyQAogLtV8TJrRiCQbURQI/exec',
@@ -187,12 +252,20 @@ class Database {
         const admins = (parsed.admins && parsed.admins.length > 0) ? parsed.admins : [DEFAULT_PRIMARY_ADMIN];
         const murid = (parsed.murid && parsed.murid.length > 0) ? parsed.murid : DEFAULT_SAMPLE_MURID;
 
+        const loadedSettings: SystemSettings = {
+          ...DEFAULT_SETTINGS,
+          ...(parsed.settings || {}),
+          shifts: (parsed.settings && parsed.settings.shifts && parsed.settings.shifts.length > 0)
+            ? parsed.settings.shifts
+            : DEFAULT_SHIFTS
+        };
+
         return {
           admins,
           murid,
           attendance: parsed.attendance || [],
           qrCode: parsed.qrCode || DEFAULT_QR_CONFIG,
-          settings: parsed.settings || DEFAULT_SETTINGS,
+          settings: loadedSettings,
           auditLogs: parsed.auditLogs || []
         };
       }

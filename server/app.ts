@@ -5,7 +5,10 @@ import {
   db,
   AdminUser,
   MuridUser,
-  AttendanceRecord
+  AttendanceRecord,
+  PresensiShift,
+  DEFAULT_SHIFTS,
+  calculateDistanceMeters
 } from './db.js';
 import {
   hashPassword,
@@ -141,7 +144,12 @@ router.get('/public/info', (_req: Request, res: Response) => {
     institutionName: settings.institutionName,
     adminWhatsApp: settings.adminWhatsApp,
     footerText: settings.footerText,
-    hasAdmin: admins.length > 0
+    hasAdmin: admins.length > 0,
+    shifts: settings.shifts || DEFAULT_SHIFTS,
+    targetLatitude: settings.targetLatitude,
+    targetLongitude: settings.targetLongitude,
+    radiusMeters: settings.radiusMeters,
+    enforceLocation: settings.enforceLocation
   });
 });
 
@@ -458,7 +466,7 @@ router.put('/murid/change-password', authenticateToken, requireMurid, async (req
 // Scan Attendance QR Code
 router.post('/attendance/scan', authenticateToken, requireMurid, (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { qrIdentifier } = req.body;
+    const { qrIdentifier, latitude, longitude, accuracy, shiftId } = req.body;
 
     if (!qrIdentifier) {
       return res.status(400).json({
@@ -512,28 +520,85 @@ router.post('/attendance/scan', authenticateToken, requireMurid, (req: Authentic
         success: false,
         code: 'ALREADY_ATTENDED',
         message: 'Anda sudah melakukan absensi hari ini.',
-        data: {
-          id: existing.id,
-          nama: existing.nama,
-          nis: existing.nis,
-          kelas: existing.kelas,
-          tanggal: existing.tanggal,
-          jam: existing.jam,
-          status: existing.status
-        }
+        data: existing
       });
     }
 
     const settings = db.getSettings();
+
+    // 1. Tentukan Shift Presensi
+    const activeShifts = (settings.shifts && settings.shifts.length > 0)
+      ? settings.shifts.filter((s) => s.aktif)
+      : DEFAULT_SHIFTS;
+
+    let selectedShift: PresensiShift | undefined;
+    if (shiftId) {
+      selectedShift = activeShifts.find((s) => s.id === shiftId);
+    }
+    if (!selectedShift) {
+      const [cH, cM] = jam.split(':').map((x) => parseInt(x, 10));
+      const currentTotalMin = cH * 60 + cM;
+
+      selectedShift = activeShifts.find((s) => {
+        const [pH, pM] = s.jamPulang.split(':').map((x) => parseInt(x, 10));
+        return currentTotalMin <= (pH * 60 + pM);
+      }) || activeShifts[0];
+    }
+
+    // 2. Tentukan Status Kehadiran (Hadir / Terlambat)
     let status: 'Hadir' | 'Terlambat' = 'Hadir';
-
-    if (settings.jamMasuk) {
-      const [limitH, limitM] = settings.jamMasuk.split(':').map((x) => parseInt(x, 10));
+    if (selectedShift && selectedShift.jamMasuk) {
+      const [limitH, limitM] = selectedShift.jamMasuk.split(':').map((x) => parseInt(x, 10));
       const [currentH, currentM] = jam.split(':').map((x) => parseInt(x, 10));
+      const limitTotalMinutes = limitH * 60 + limitM + (selectedShift.toleransiMenit || 0);
+      const currentTotalMinutes = currentH * 60 + currentM;
 
-      if (currentH > limitH || (currentH === limitH && currentM > limitM)) {
+      if (currentTotalMinutes > limitTotalMinutes) {
         status = 'Terlambat';
       }
+    }
+
+    // 3. Validasi & Pengolahan Lokasi Koordinat GPS
+    const userLat = typeof latitude === 'number' ? latitude : (latitude ? parseFloat(latitude) : null);
+    const userLon = typeof longitude === 'number' ? longitude : (longitude ? parseFloat(longitude) : null);
+    const userAccuracy = typeof accuracy === 'number' ? accuracy : null;
+
+    let jarakMeter: number | null = null;
+    let lokasiStatus: 'Sesuai Radius' | 'Luar Radius' | 'Lokasi Tidak Terdeteksi' = 'Lokasi Tidak Terdeteksi';
+    let mapsUrl: string | undefined = undefined;
+
+    if (userLat !== null && userLon !== null && !isNaN(userLat) && !isNaN(userLon)) {
+      jarakMeter = calculateDistanceMeters(
+        userLat,
+        userLon,
+        settings.targetLatitude,
+        settings.targetLongitude
+      );
+      const isWithinRadius = jarakMeter <= (settings.radiusMeters || 100);
+      lokasiStatus = isWithinRadius ? 'Sesuai Radius' : 'Luar Radius';
+      mapsUrl = `https://www.google.com/maps?q=${userLat},${userLon}`;
+
+      // Jika aturan wajib radius diaktifkan dan siswa berada di luar radius
+      if (settings.enforceLocation && !isWithinRadius) {
+        return res.status(403).json({
+          success: false,
+          code: 'LOCATION_OUT_OF_BOUNDS',
+          message: `Presensi ditolak! Posisi Anda berada ${jarakMeter} meter dari lokasi sekolah (Radius izin maksimal: ${settings.radiusMeters} meter). Pastikan Anda berada di area sekolah untuk melakukan presensi.`,
+          data: {
+            jarakMeter,
+            radiusMaksimal: settings.radiusMeters,
+            latitude: userLat,
+            longitude: userLon,
+            mapsUrl
+          }
+        });
+      }
+    } else if (settings.enforceLocation) {
+      return res.status(400).json({
+        success: false,
+        code: 'LOCATION_REQUIRED',
+        message: 'Akses lokasi GPS perangkat wajib aktif untuk melakukan presensi. Silakan izinkan akses lokasi di browser/perangkat Anda.'
+      });
     }
 
     const newRecord: AttendanceRecord = {
@@ -545,6 +610,13 @@ router.post('/attendance/scan', authenticateToken, requireMurid, (req: Authentic
       tanggal,
       jam,
       status,
+      shift: selectedShift?.nama || 'Shift Reguler',
+      latitude: userLat,
+      longitude: userLon,
+      accuracy: userAccuracy,
+      jarakMeter,
+      lokasiStatus,
+      mapsUrl,
       qrId: currentQR.identifier,
       timestamp,
       createdAt: new Date().toISOString()
@@ -558,15 +630,7 @@ router.post('/attendance/scan', authenticateToken, requireMurid, (req: Authentic
     return res.status(201).json({
       success: true,
       message: 'Absensi Anda berhasil dicatat.',
-      data: {
-        id: newRecord.id,
-        nama: newRecord.nama,
-        nis: newRecord.nis,
-        kelas: newRecord.kelas,
-        tanggal: newRecord.tanggal,
-        jam: newRecord.jam,
-        status: newRecord.status
-      }
+      data: newRecord
     });
   } catch (error: any) {
     console.error('Scan attendance error:', error);
@@ -948,6 +1012,11 @@ router.put('/admin/settings', authenticateToken, requireAdmin, (req: Authenticat
     adminEmail,
     jamMasuk,
     jamPulang,
+    shifts,
+    targetLatitude,
+    targetLongitude,
+    radiusMeters,
+    enforceLocation,
     footerText,
     googleSheetsId,
     googleSheetsScriptUrl,
@@ -964,6 +1033,11 @@ router.put('/admin/settings', authenticateToken, requireAdmin, (req: Authenticat
   if (adminEmail) updates.adminEmail = adminEmail.trim();
   if (jamMasuk) updates.jamMasuk = jamMasuk.trim();
   if (jamPulang) updates.jamPulang = jamPulang.trim();
+  if (Array.isArray(shifts)) updates.shifts = shifts;
+  if (typeof targetLatitude === 'number') updates.targetLatitude = targetLatitude;
+  if (typeof targetLongitude === 'number') updates.targetLongitude = targetLongitude;
+  if (typeof radiusMeters === 'number') updates.radiusMeters = radiusMeters;
+  if (enforceLocation !== undefined) updates.enforceLocation = !!enforceLocation;
   if (footerText) updates.footerText = footerText.trim();
   if (googleSheetsId !== undefined) updates.googleSheetsId = googleSheetsId.trim();
   if (googleSheetsScriptUrl !== undefined) updates.googleSheetsScriptUrl = googleSheetsScriptUrl.trim();
@@ -972,7 +1046,7 @@ router.put('/admin/settings', authenticateToken, requireAdmin, (req: Authenticat
 
   const updated = db.updateSettings(updates);
   asyncSyncSettingsToSheets(updated);
-  db.logAction(req.user!.name, 'admin', 'Update Pengaturan', 'Memperbarui pengaturan sistem dan lembaga.');
+  db.logAction(req.user!.name, 'admin', 'Update Pengaturan', 'Memperbarui pengaturan sistem, shift presensi, dan lokasi koordinat.');
 
   res.json({
     success: true,
@@ -1238,7 +1312,7 @@ router.get('/admin/export-csv', authenticateToken, requireAdmin, (req: Authentic
 
   records.sort((a, b) => b.timestamp - a.timestamp);
 
-  const headers = ['No', 'ID Absensi', 'NIS', 'Nama Murid', 'Kelas', 'Tanggal', 'Jam', 'Status', 'QR Token'];
+  const headers = ['No', 'ID Absensi', 'NIS', 'Nama Murid', 'Kelas', 'Tanggal', 'Jam', 'Shift', 'Status', 'Latitude', 'Longitude', 'Jarak (m)', 'Status Lokasi', 'Link Google Maps', 'QR Token'];
   const rows = records.map((r, i) => [
     i + 1,
     `"${r.id}"`,
@@ -1247,7 +1321,13 @@ router.get('/admin/export-csv', authenticateToken, requireAdmin, (req: Authentic
     `"${r.kelas}"`,
     `"${r.tanggal}"`,
     `"${r.jam}"`,
+    `"${r.shift || 'Shift Reguler'}"`,
     `"${r.status}"`,
+    r.latitude !== null && r.latitude !== undefined ? r.latitude : '""',
+    r.longitude !== null && r.longitude !== undefined ? r.longitude : '""',
+    r.jarakMeter !== null && r.jarakMeter !== undefined ? r.jarakMeter : '""',
+    `"${r.lokasiStatus || '-'}"`,
+    `"${r.mapsUrl || (r.latitude ? `https://www.google.com/maps?q=${r.latitude},${r.longitude}` : '')}"`,
     `"${r.qrId}"`
   ]);
 

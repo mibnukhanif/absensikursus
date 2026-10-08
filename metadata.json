@@ -2,7 +2,8 @@
   "name": "DIGITALMEERA ABSENSI",
   "description": "Sistem Absensi Digital Berbasis QR Code Statis untuk Murid dan Admin",
   "requestFramePermissions": [
-    "camera"
+    "camera",
+    "geolocation"
   ],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

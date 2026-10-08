@@ -18,7 +18,13 @@ import {
   History,
   AlertCircle,
   Info,
-  Download
+  Download,
+  MapPin,
+  Layers,
+  Plus,
+  Trash2,
+  Crosshair,
+  ExternalLink
 } from 'lucide-react';
 
 export const AdminPengaturanPage: React.FC = () => {
@@ -32,6 +38,11 @@ export const AdminPengaturanPage: React.FC = () => {
     adminEmail: '',
     jamMasuk: '07:30',
     jamPulang: '15:00',
+    shifts: [],
+    targetLatitude: -6.200000,
+    targetLongitude: 106.816666,
+    radiusMeters: 100,
+    enforceLocation: false,
     footerText: '',
     googleSheetsId: '',
     googleSheetsScriptUrl: '',
@@ -42,6 +53,16 @@ export const AdminPengaturanPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+
+  // New Shift state
+  const [newShift, setNewShift] = useState({
+    nama: '',
+    jamMasuk: '07:30',
+    jamPulang: '15:00',
+    toleransiMenit: 0
+  });
+  const [showAddShift, setShowAddShift] = useState(false);
+  const [gettingLocation, setGettingLocation] = useState(false);
 
   // Admin Account & Username state
   const [adminProfile, setAdminProfile] = useState({
@@ -89,6 +110,63 @@ export const AdminPengaturanPage: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  const handleAddShift = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newShift.nama.trim()) return;
+    const shiftItem = {
+      id: 'shift-' + Date.now(),
+      nama: newShift.nama.trim(),
+      jamMasuk: newShift.jamMasuk,
+      jamPulang: newShift.jamPulang,
+      toleransiMenit: Number(newShift.toleransiMenit) || 0,
+      aktif: true
+    };
+    setSettings((prev) => ({
+      ...prev,
+      shifts: [...(prev.shifts || []), shiftItem]
+    }));
+    setNewShift({ nama: '', jamMasuk: '07:30', jamPulang: '15:00', toleransiMenit: 0 });
+    setShowAddShift(false);
+  };
+
+  const handleRemoveShift = (id: string) => {
+    setSettings((prev) => ({
+      ...prev,
+      shifts: (prev.shifts || []).filter((s) => s.id !== id)
+    }));
+  };
+
+  const handleToggleShift = (id: string) => {
+    setSettings((prev) => ({
+      ...prev,
+      shifts: (prev.shifts || []).map((s) => (s.id === id ? { ...s, aktif: !s.aktif } : s))
+    }));
+  };
+
+  const handleGetCurrentLocation = () => {
+    if (!('geolocation' in navigator)) {
+      alert('Browser Anda tidak mendukung deteksi lokasi.');
+      return;
+    }
+    setGettingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setSettings((prev) => ({
+          ...prev,
+          targetLatitude: Number(pos.coords.latitude.toFixed(6)),
+          targetLongitude: Number(pos.coords.longitude.toFixed(6))
+        }));
+        setGettingLocation(false);
+        alert(`Titik Koordinat Berhasil Diperoleh!\nLatitude: ${pos.coords.latitude.toFixed(6)}\nLongitude: ${pos.coords.longitude.toFixed(6)}`);
+      },
+      (err) => {
+        setGettingLocation(false);
+        alert('Gagal mendeteksi lokasi GPS: ' + err.message);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -400,35 +478,229 @@ export const AdminPengaturanPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Operational Hours */}
+          {/* Shift Jam Batas Presensi */}
           <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 space-y-4 text-xs">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Clock className="w-4 h-4 text-emerald-400" /> Jam Batas Presensi
-            </h3>
-            <p className="text-slate-400 text-[11px]">
-              Murid yang melakukan scan melebihi jam masuk akan otomatis berstatus <strong>Terlambat</strong>.
-            </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-emerald-400" /> Jam Batas Presensi & Shift
+                </h3>
+                <p className="text-slate-400 text-[11px] mt-0.5">
+                  Kelola jadwal shift presensi. Murid yang scan melewati jam masuk akan berstatus <strong>Terlambat</strong>.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddShift(!showAddShift)}
+                className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" /> Tambah Shift
+              </button>
+            </div>
 
-            <div className="grid grid-cols-2 gap-4 max-w-sm">
+            {/* Shift List Table */}
+            <div className="space-y-2">
+              {(settings.shifts || []).length === 0 ? (
+                <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-500 text-center">
+                  Belum ada shift presensi khusus. Menggunakan jam masuk default ({settings.jamMasuk} - {settings.jamPulang}).
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-800 border border-slate-800 rounded-2xl overflow-hidden bg-slate-950/50">
+                  {(settings.shifts || []).map((sh) => (
+                    <div key={sh.id} className="p-3.5 flex items-center justify-between gap-3">
+                      <div>
+                        <div className="font-bold text-white flex items-center gap-2">
+                          <span>{sh.nama}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${sh.aktif ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-slate-800 text-slate-400'}`}>
+                            {sh.aktif ? 'Aktif' : 'Nonaktif'}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                          Masuk: <span className="text-emerald-400">{sh.jamMasuk}</span> • Pulang: <span className="text-blue-400">{sh.jamPulang}</span> • Toleransi: {sh.toleransiMenit || 0} menit
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleShift(sh.id)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
+                            sh.aktif
+                              ? 'bg-amber-600/20 text-amber-300 hover:bg-amber-600/30'
+                              : 'bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30'
+                          }`}
+                        >
+                          {sh.aktif ? 'Nonaktifkan' : 'Aktifkan'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveShift(sh.id)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 transition cursor-pointer"
+                          title="Hapus Shift"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Form Tambah Shift Baru */}
+            {showAddShift && (
+              <div className="p-4 rounded-2xl bg-slate-950 border border-indigo-900/50 space-y-3">
+                <h4 className="font-bold text-white text-xs flex items-center gap-1.5">
+                  <Plus className="w-3.5 h-3.5 text-indigo-400" /> Tambah Shift Presensi Baru
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] text-slate-400 font-medium mb-1">Nama Shift</label>
+                    <input
+                      type="text"
+                      value={newShift.nama}
+                      onChange={(e) => setNewShift({ ...newShift, nama: e.target.value })}
+                      placeholder="Contoh: Shift Siang / Khusus"
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-slate-400 font-medium mb-1">Batas Jam Masuk (HH:mm)</label>
+                    <input
+                      type="time"
+                      value={newShift.jamMasuk}
+                      onChange={(e) => setNewShift({ ...newShift, jamMasuk: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-slate-400 font-medium mb-1">Jam Pulang (HH:mm)</label>
+                    <input
+                      type="time"
+                      value={newShift.jamPulang}
+                      onChange={(e) => setNewShift({ ...newShift, jamPulang: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddShift(false)}
+                    className="px-3 py-1.5 bg-slate-800 text-slate-300 rounded-xl text-xs font-medium cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddShift}
+                    className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+                  >
+                    Simpan Shift
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Titik Koordinat Maps & Geofencing Sekolah */}
+          <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 space-y-4 text-xs">
+            <div className="flex items-center justify-between">
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Batas Jam Masuk (HH:mm)</label>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-rose-400" /> Titik Koordinat Lokasi & Geofencing Maps
+                </h3>
+                <p className="text-slate-400 text-[11px] mt-0.5">
+                  Tentukan titik pusat sekolah agar murid wajib berada di lokasi saat melakukan scan absensi.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleGetCurrentLocation}
+                disabled={gettingLocation}
+                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center gap-1.5 transition disabled:opacity-50 cursor-pointer"
+              >
+                <Crosshair className="w-3.5 h-3.5" />
+                {gettingLocation ? 'Mendeteksi...' : 'Ambil Titik GPS Saya'}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">
+                  Target Latitude (Garis Lintang)
+                </label>
                 <input
-                  type="time"
-                  required
-                  value={settings.jamMasuk}
-                  onChange={(e) => setSettings({ ...settings, jamMasuk: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-emerald-500 font-mono"
+                  type="number"
+                  step="any"
+                  value={settings.targetLatitude ?? -6.200000}
+                  onChange={(e) => setSettings({ ...settings, targetLatitude: parseFloat(e.target.value) || 0 })}
+                  placeholder="-6.200000"
+                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono focus:outline-none focus:border-emerald-500"
                 />
               </div>
+
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Jam Pulang (HH:mm)</label>
+                <label className="block text-slate-400 font-semibold mb-1">
+                  Target Longitude (Garis Bujur)
+                </label>
                 <input
-                  type="time"
-                  value={settings.jamPulang}
-                  onChange={(e) => setSettings({ ...settings, jamPulang: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-emerald-500 font-mono"
+                  type="number"
+                  step="any"
+                  value={settings.targetLongitude ?? 106.816666}
+                  onChange={(e) => setSettings({ ...settings, targetLongitude: parseFloat(e.target.value) || 0 })}
+                  placeholder="106.816666"
+                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono focus:outline-none focus:border-emerald-500"
                 />
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">
+                  Radius Izin Presensi Maksimal (Meter)
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    min="10"
+                    max="5000"
+                    value={settings.radiusMeters || 100}
+                    onChange={(e) => setSettings({ ...settings, radiusMeters: parseInt(e.target.value, 10) || 100 })}
+                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono focus:outline-none focus:border-emerald-500"
+                  />
+                  <span className="self-center font-bold text-slate-400">Meter</span>
+                </div>
+              </div>
+
+              <div className="flex flex-col justify-end">
+                <a
+                  href={`https://www.google.com/maps?q=${settings.targetLatitude || -6.2},${settings.targetLongitude || 106.816}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2.5 px-4 bg-slate-950 hover:bg-slate-800 border border-slate-700 rounded-xl text-blue-400 font-medium text-xs flex items-center justify-center gap-1.5 transition"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" /> Uji Lihat Titik di Google Maps
+                </a>
+              </div>
+            </div>
+
+            {/* Geofence Enforcement Switch */}
+            <div className="pt-2 border-t border-slate-800 flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="enforceLocation"
+                checked={!!settings.enforceLocation}
+                onChange={(e) => setSettings({ ...settings, enforceLocation: e.target.checked })}
+                className="w-4 h-4 rounded border-slate-700 bg-slate-950 text-rose-500 focus:ring-rose-500"
+              />
+              <label htmlFor="enforceLocation" className="text-slate-200 font-medium cursor-pointer">
+                <strong>Wajibkan Presensi di Dalam Radius Sekolah (Geofencing)</strong>
+                <span className="block text-[11px] text-slate-400">
+                  Jika dicentang, murid yang berada di luar radius {settings.radiusMeters || 100} meter akan otomatis ditolak dan tidak dapat melakukan presensi.
+                </span>
+              </label>
             </div>
           </div>
 

@@ -1,11 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
 import jsQR from 'jsqr';
-import { Camera, X, RefreshCw, Zap, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Camera, X, RefreshCw, Zap, AlertCircle, CheckCircle2, MapPin } from 'lucide-react';
+
+export interface GeoLocationCoords {
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+}
 
 interface QRScannerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onScanSuccess: (scannedText: string) => void;
+  onScanSuccess: (scannedText: string, coords?: GeoLocationCoords | null) => void;
   isProcessing?: boolean;
 }
 
@@ -25,9 +31,42 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
   const [manualCode, setManualCode] = useState<string>('');
   const [showManualInput, setShowManualInput] = useState<boolean>(false);
 
+  // GPS Coordinates state
+  const [gpsCoords, setGpsCoords] = useState<GeoLocationCoords | null>(null);
+  const [gpsLoading, setGpsLoading] = useState<boolean>(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameId = useRef<number | null>(null);
   const hasDetectedRef = useRef<boolean>(false);
+
+  // Fetch device GPS location whenever modal opens
+  useEffect(() => {
+    if (isOpen) {
+      if ('geolocation' in navigator) {
+        setGpsLoading(true);
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            setGpsCoords({
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+              accuracy: Math.round(pos.coords.accuracy)
+            });
+            setGpsLoading(false);
+            setGpsError(null);
+          },
+          (err) => {
+            console.warn('GPS location error:', err);
+            setGpsError(err.message || 'Izin lokasi tidak diberikan');
+            setGpsLoading(false);
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      } else {
+        setGpsError('Perangkat tidak mendukung GPS.');
+      }
+    }
+  }, [isOpen]);
 
   // Play audio chime when successfully scanned
   const playBeep = () => {
@@ -156,7 +195,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
           hasDetectedRef.current = true;
           playBeep();
           stopCamera();
-          onScanSuccess(code.data.trim());
+          onScanSuccess(code.data.trim(), gpsCoords);
           return;
         }
       }
@@ -198,6 +237,29 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
           >
             <X className="w-5 h-5" />
           </button>
+        </div>
+
+        {/* GPS Status Indicator Banner */}
+        <div className="px-5 py-2 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between text-[11px]">
+          <div className="flex items-center gap-1.5 text-slate-300">
+            <MapPin className={`w-3.5 h-3.5 ${gpsCoords ? 'text-emerald-400' : gpsLoading ? 'text-amber-400 animate-pulse' : 'text-slate-500'}`} />
+            <span>
+              {gpsLoading ? 'Mendeteksi titik koordinat GPS...' : gpsCoords ? (
+                <span className="text-emerald-300 font-mono">
+                  {gpsCoords.latitude.toFixed(6)}, {gpsCoords.longitude.toFixed(6)} (±{gpsCoords.accuracy || 10}m)
+                </span>
+              ) : gpsError ? (
+                <span className="text-amber-400">GPS: {gpsError}</span>
+              ) : (
+                <span className="text-slate-400">Menunggu koordinat GPS...</span>
+              )}
+            </span>
+          </div>
+          {gpsCoords && (
+            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-semibold">
+              GPS Siap
+            </span>
+          )}
         </div>
 
         {/* Viewport / Video Area */}
@@ -316,7 +378,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
                 disabled={!manualCode.trim() || isProcessing}
                 onClick={() => {
                   stopCamera();
-                  onScanSuccess(manualCode.trim());
+                  onScanSuccess(manualCode.trim(), gpsCoords);
                 }}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold rounded-xl text-sm transition"
               >

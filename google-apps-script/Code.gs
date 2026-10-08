@@ -4,12 +4,16 @@
  * ==============================================================================
  * ID SPREADSHEET: 1Mv6cw3CrjCVW7o42lM87iN98D0i0p4ClaCCHrg9i1Ek
  *
+ * FITUR UTAMA:
+ * 1. Manajemen Kredensial Admin & Murid (Bisa diubah langsung di bawah).
+ * 2. Pengaturan Shift Jam Presensi (Bisa ditambah/diubah langsung di bawah).
+ * 3. Titik Koordinat GPS Sekolah & Geofencing Maps (Otomatis tercatat ke Spreadsheet).
+ *
  * PANDUAN PENGGUNAAN:
- * 1. Anda dapat mengubah USERNAME & PASSWORD Admin dan Murid langsung di bawah ini.
- * 2. Setelah mengubah, klik tombol "Save" (Ikon Disket) di Apps Script.
- * 3. Pilih fungsi "initSheets" atau "resetDefaultCredentials" di dropdown fungsi,
- *    lalu klik tombol "Run" (Jalankan) untuk memasukkan akun ke Google Spreadsheet.
- * 4. Buka kembali website absensi dan login menggunakan username & password tersebut!
+ * 1. Ubah konfigurasi Admin, Murid, Shift, atau Koordinat Lokasi di bawah jika diinginkan.
+ * 2. Klik tombol "Save" (Disket) di Apps Script.
+ * 3. Pilih fungsi "initSheets" atau "resetDefaultCredentials" di dropdown toolbar,
+ *    lalu klik tombol "Run" (Jalankan) untuk memasukkan struktur tabel ke Google Spreadsheet.
  * ==============================================================================
  */
 
@@ -21,7 +25,6 @@ var API_SECRET_TOKEN = "";
 
 // ==============================================================================
 // 1. KREDENSIAL LOGIN ADMIN DEFAULT
-// Ubah username, password, email, dan nama di sini sesuai keinginan Anda!
 // ==============================================================================
 var DEFAULT_ADMIN = {
   id: "admin-primary",
@@ -35,7 +38,6 @@ var DEFAULT_ADMIN = {
 
 // ==============================================================================
 // 2. KREDENSIAL LOGIN MURID CONTOH / DEFAULT
-// Anda dapat menambah atau mengubah NIS, nama, dan password murid di sini!
 // ==============================================================================
 var DEFAULT_MURID_LIST = [
   {
@@ -62,6 +64,40 @@ var DEFAULT_MURID_LIST = [
   }
 ];
 
+// ==============================================================================
+// 3. PENGATURAN TITIK KOORDINAT LOKASI SEKOLAH (GEOFENCING MAPS)
+// Ubah koordinat latitude dan longitude lokasi sekolah Anda di sini.
+// ==============================================================================
+var TARGET_LOCATION = {
+  latitude: -6.200000,         // <-- Latitude Titik Lokasi Sekolah
+  longitude: 106.816666,       // <-- Longitude Titik Lokasi Sekolah
+  radiusMeters: 100,           // <-- Batas maksimal radius presensi siswa (meter)
+  enforceGeofence: false       // <-- true jika presensi wajib di dalam radius
+};
+
+// ==============================================================================
+// 4. PENGATURAN SHIFT JAM BATAS PRESENSI
+// Anda dapat menambah shift baru (misal Shift Sore) atau mengubah jam di sini.
+// ==============================================================================
+var DEFAULT_SHIFTS = [
+  {
+    id: "shift-pagi",
+    nama: "Shift Pagi / Reguler",
+    jamMasuk: "07:30",         // Jam batas keterlambatan
+    jamPulang: "15:00",
+    toleransiMenit: 0,
+    aktif: true
+  },
+  {
+    id: "shift-siang",
+    nama: "Shift Siang",
+    jamMasuk: "12:30",
+    jamPulang: "17:30",
+    toleransiMenit: 0,
+    aktif: true
+  }
+];
+
 /**
  * Membuka referensi Google Spreadsheet
  */
@@ -82,31 +118,54 @@ function getSpreadsheet(payload) {
 }
 
 /**
+ * Header Kolom untuk Seluruh Tab Spreadsheet
+ */
+var HEADERS_DEF = {
+  ABSENSI: [
+    "ID_ABSENSI", "ID_MURID", "NIS", "NAMA", "KELAS", "TANGGAL", "JAM",
+    "SHIFT", "STATUS", "LATITUDE", "LONGITUDE", "JARAK_METER", "LOKASI_MAPS",
+    "QR_ID", "TIMESTAMP"
+  ],
+  MURID: [
+    "ID_MURID", "NIS", "NAMA", "KELAS", "USERNAME", "PASSWORD", "NO_HP", "STATUS", "TANGGAL_DAFTAR"
+  ],
+  ADMIN: [
+    "ID_ADMIN", "USERNAME", "EMAIL", "PASSWORD", "NAMA", "ROLE", "STATUS"
+  ],
+  SETTINGS: [
+    "KEY", "VALUE"
+  ]
+};
+
+/**
  * INISIALISASI AWAL TABEL & KREDENSIAL KE SPREADSHEET
  * Jalankan fungsi ini di Apps Script untuk membuat sheet dan mengisi admin & murid pertama!
  */
 function initSheets() {
   var ss = getSpreadsheet();
 
-  // 1. Sheet ABSENSI
-  var sheetAbsensi = getOrCreateSheet(ss, "ABSENSI", [
-    "ID_ABSENSI", "ID_MURID", "NIS", "NAMA", "KELAS", "TANGGAL", "JAM", "STATUS", "QR_ID", "TIMESTAMP"
-  ], "#047857");
+  // 1. Sheet ABSENSI (Dengan Kolom Titik Koordinat, Shift, & Link Maps)
+  var sheetAbsensi = getOrCreateSheet(ss, "ABSENSI", HEADERS_DEF.ABSENSI, "#047857");
+
+  // Jika sheet absensi lama belum punya kolom LATITUDE/LONGITUDE, perbarui headernya
+  if (sheetAbsensi.getLastRow() >= 1 && sheetAbsensi.getLastColumn() < HEADERS_DEF.ABSENSI.length) {
+    sheetAbsensi.getRange(1, 1, 1, HEADERS_DEF.ABSENSI.length).setValues([HEADERS_DEF.ABSENSI]);
+    var hRange = sheetAbsensi.getRange(1, 1, 1, HEADERS_DEF.ABSENSI.length);
+    hRange.setBackground("#047857");
+    hRange.setFontColor("#FFFFFF");
+    hRange.setFontWeight("bold");
+    sheetAbsensi.setFrozenRows(1);
+    Logger.log("Header sheet ABSENSI berhasil diperbarui dengan kolom Koordinat & Maps!");
+  }
 
   // 2. Sheet MURID
-  var sheetMurid = getOrCreateSheet(ss, "MURID", [
-    "ID_MURID", "NIS", "NAMA", "KELAS", "USERNAME", "PASSWORD", "NO_HP", "STATUS", "TANGGAL_DAFTAR"
-  ], "#1d4ed8");
+  var sheetMurid = getOrCreateSheet(ss, "MURID", HEADERS_DEF.MURID, "#1d4ed8");
 
   // 3. Sheet ADMIN
-  var sheetAdmin = getOrCreateSheet(ss, "ADMIN", [
-    "ID_ADMIN", "USERNAME", "EMAIL", "PASSWORD", "NAMA", "ROLE", "STATUS"
-  ], "#4338ca");
+  var sheetAdmin = getOrCreateSheet(ss, "ADMIN", HEADERS_DEF.ADMIN, "#4338ca");
 
   // 4. Sheet SETTINGS
-  var sheetSettings = getOrCreateSheet(ss, "SETTINGS", [
-    "KEY", "VALUE"
-  ], "#374151");
+  var sheetSettings = getOrCreateSheet(ss, "SETTINGS", HEADERS_DEF.SETTINGS, "#374151");
 
   // Isi data Admin jika sheet ADMIN masih kosong (hanya header)
   if (sheetAdmin.getLastRow() <= 1) {
@@ -148,8 +207,11 @@ function initSheets() {
       ["institutionName", "Lembaga Pendidikan Digitalmeera"],
       ["adminWhatsApp", "081234567890"],
       ["adminEmail", DEFAULT_ADMIN.email],
-      ["jamMasuk", "07:30"],
-      ["jamPulang", "15:00"],
+      ["targetLatitude", String(TARGET_LOCATION.latitude)],
+      ["targetLongitude", String(TARGET_LOCATION.longitude)],
+      ["radiusMeters", String(TARGET_LOCATION.radiusMeters)],
+      ["enforceLocation", String(TARGET_LOCATION.enforceGeofence)],
+      ["shiftsJson", JSON.stringify(DEFAULT_SHIFTS)],
       ["updatedAt", new Date().toISOString()]
     ];
     defaultSettings.forEach(function(pair) {
@@ -167,27 +229,21 @@ function initSheets() {
   Logger.log("Inisialisasi Spreadsheet Berhasil!");
   Logger.log("LOGIN ADMIN -> Username: " + DEFAULT_ADMIN.username + " | Password: " + DEFAULT_ADMIN.password);
   Logger.log("LOGIN MURID -> NIS: " + DEFAULT_MURID_LIST[0].nis + " | Password: " + DEFAULT_MURID_LIST[0].password);
+  Logger.log("LOKASI SEKOLAH -> Lat: " + TARGET_LOCATION.latitude + ", Long: " + TARGET_LOCATION.longitude + " (" + TARGET_LOCATION.radiusMeters + "m)");
   Logger.log("=================================================");
 }
 
 /**
  * RESET / TULIS ULANG KREDENSIAL DARI KODE KE SPREADSHEET
- * Jalankan fungsi ini jika Anda mengubah DEFAULT_ADMIN atau DEFAULT_MURID_LIST di atas
- * dan ingin langsung mengupdate isi spreadsheet!
  */
 function resetDefaultCredentials() {
   var ss = getSpreadsheet();
 
   // Update Sheet ADMIN
-  var sheetAdmin = getOrCreateSheet(ss, "ADMIN", [
-    "ID_ADMIN", "USERNAME", "EMAIL", "PASSWORD", "NAMA", "ROLE", "STATUS"
-  ], "#4338ca");
-
-  // Hapus data lama baris 2 ke bawah
+  var sheetAdmin = getOrCreateSheet(ss, "ADMIN", HEADERS_DEF.ADMIN, "#4338ca");
   if (sheetAdmin.getLastRow() > 1) {
     sheetAdmin.getRange(2, 1, sheetAdmin.getLastRow() - 1, sheetAdmin.getLastColumn()).clearContent();
   }
-
   sheetAdmin.appendRow([
     DEFAULT_ADMIN.id,
     DEFAULT_ADMIN.username,
@@ -199,14 +255,10 @@ function resetDefaultCredentials() {
   ]);
 
   // Update Sheet MURID
-  var sheetMurid = getOrCreateSheet(ss, "MURID", [
-    "ID_MURID", "NIS", "NAMA", "KELAS", "USERNAME", "PASSWORD", "NO_HP", "STATUS", "TANGGAL_DAFTAR"
-  ], "#1d4ed8");
-
+  var sheetMurid = getOrCreateSheet(ss, "MURID", HEADERS_DEF.MURID, "#1d4ed8");
   if (sheetMurid.getLastRow() > 1) {
     sheetMurid.getRange(2, 1, sheetMurid.getLastRow() - 1, sheetMurid.getLastColumn()).clearContent();
   }
-
   DEFAULT_MURID_LIST.forEach(function(m) {
     sheetMurid.appendRow([
       m.id,
@@ -222,7 +274,6 @@ function resetDefaultCredentials() {
   });
 
   Logger.log("Kredensial berhasil diperbarui di Spreadsheet!");
-  Logger.log("Admin: " + DEFAULT_ADMIN.username + " / " + DEFAULT_ADMIN.password);
 }
 
 /**
@@ -243,6 +294,8 @@ function doGet(e) {
       password: DEFAULT_MURID_LIST[0].password,
       nama: DEFAULT_MURID_LIST[0].nama
     },
+    targetLocation: TARGET_LOCATION,
+    shifts: DEFAULT_SHIFTS,
     timestamp: new Date().toISOString()
   });
 }
@@ -291,7 +344,7 @@ function doPost(e) {
       case "GET_USERS":
         return handleGetUsers(ss);
 
-      // 4. Catat Kehadiran
+      // 4. Catat Kehadiran (Termasuk Titik Koordinat GPS, Jarak, Shift, & Link Maps)
       case "RECORD_ATTENDANCE":
         return handleRecordAttendance(ss, data);
 
@@ -330,6 +383,50 @@ function doPost(e) {
 }
 
 /**
+ * Catat baris presensi baru ke tab "ABSENSI" dengan koordinat & link maps
+ */
+function handleRecordAttendance(ss, item) {
+  if (!item) return responseJSON({ success: false, message: "Data absensi kosong." });
+
+  var sheet = getOrCreateSheet(ss, "ABSENSI", HEADERS_DEF.ABSENSI, "#047857");
+
+  // Format link Google Maps
+  var mapsUrl = item.mapsUrl || "";
+  if (!mapsUrl && item.latitude && item.longitude) {
+    mapsUrl = "https://www.google.com/maps?q=" + item.latitude + "," + item.longitude;
+  }
+
+  var jarakText = "";
+  if (item.jarakMeter !== null && item.jarakMeter !== undefined && item.jarakMeter !== "") {
+    jarakText = String(item.jarakMeter) + " m";
+  }
+
+  sheet.appendRow([
+    item.id || "",
+    item.muridId || "",
+    item.nis || "",
+    item.nama || "",
+    item.kelas || "",
+    item.tanggal || "",
+    item.jam || "",
+    item.shift || "Shift Reguler",
+    item.status || "Hadir",
+    item.latitude !== null && item.latitude !== undefined ? item.latitude : "",
+    item.longitude !== null && item.longitude !== undefined ? item.longitude : "",
+    jarakText,
+    mapsUrl,
+    item.qrId || "",
+    item.timestamp ? new Date(item.timestamp).toISOString() : new Date().toISOString()
+  ]);
+
+  return responseJSON({
+    success: true,
+    message: "Absensi " + item.nama + " berhasil dicatat ke Google Sheets dengan titik koordinat.",
+    row: sheet.getLastRow()
+  });
+}
+
+/**
  * Verifikasi login Admin berdasarkan data di Sheet ADMIN atau DEFAULT_ADMIN
  */
 function handleVerifyAdminLogin(ss, data) {
@@ -342,7 +439,6 @@ function handleVerifyAdminLogin(ss, data) {
 
   var sheet = ss.getSheetByName("ADMIN");
 
-  // Jika sheet belum ada atau kosong, cocokkan dengan DEFAULT_ADMIN
   if (!sheet || sheet.getLastRow() <= 1) {
     if (
       (identifier === DEFAULT_ADMIN.username.toLowerCase() || identifier === DEFAULT_ADMIN.email.toLowerCase()) &&
@@ -357,7 +453,6 @@ function handleVerifyAdminLogin(ss, data) {
     return responseJSON({ success: false, message: "Username atau password admin salah." });
   }
 
-  // Cek pada sheet ADMIN
   var lastRow = sheet.getLastRow();
   var values = sheet.getRange(2, 1, lastRow - 1, 7).getValues();
 
@@ -390,7 +485,6 @@ function handleVerifyAdminLogin(ss, data) {
     }
   }
 
-  // Fallback ke DEFAULT_ADMIN jika belum ada di baris
   if (
     (identifier === DEFAULT_ADMIN.username.toLowerCase() || identifier === DEFAULT_ADMIN.email.toLowerCase()) &&
     password === String(DEFAULT_ADMIN.password)
@@ -418,7 +512,6 @@ function handleVerifyMuridLogin(ss, data) {
 
   var sheet = ss.getSheetByName("MURID");
 
-  // Jika sheet belum ada atau kosong, cocokkan dengan DEFAULT_MURID_LIST
   if (!sheet || sheet.getLastRow() <= 1) {
     for (var d = 0; d < DEFAULT_MURID_LIST.length; d++) {
       var dm = DEFAULT_MURID_LIST[d];
@@ -473,7 +566,6 @@ function handleVerifyMuridLogin(ss, data) {
     }
   }
 
-  // Fallback ke DEFAULT_MURID_LIST
   for (var k = 0; k < DEFAULT_MURID_LIST.length; k++) {
     var km = DEFAULT_MURID_LIST[k];
     if (
@@ -498,7 +590,6 @@ function handleGetUsers(ss) {
   var admins = [];
   var murid = [];
 
-  // Ambil Admin
   var sheetAdmin = ss.getSheetByName("ADMIN");
   if (sheetAdmin && sheetAdmin.getLastRow() > 1) {
     var aRows = sheetAdmin.getRange(2, 1, sheetAdmin.getLastRow() - 1, 7).getValues();
@@ -519,7 +610,6 @@ function handleGetUsers(ss) {
   }
   if (admins.length === 0) admins.push(DEFAULT_ADMIN);
 
-  // Ambil Murid
   var sheetMurid = ss.getSheetByName("MURID");
   if (sheetMurid && sheetMurid.getLastRow() > 1) {
     var mRows = sheetMurid.getRange(2, 1, sheetMurid.getLastRow() - 1, 9).getValues();
@@ -552,45 +642,12 @@ function handleGetUsers(ss) {
 }
 
 /**
- * Catat baris presensi baru ke tab "ABSENSI"
- */
-function handleRecordAttendance(ss, item) {
-  if (!item) return responseJSON({ success: false, message: "Data absensi kosong." });
-
-  var sheet = getOrCreateSheet(ss, "ABSENSI", [
-    "ID_ABSENSI", "ID_MURID", "NIS", "NAMA", "KELAS", "TANGGAL", "JAM", "STATUS", "QR_ID", "TIMESTAMP"
-  ], "#047857");
-
-  sheet.appendRow([
-    item.id || "",
-    item.muridId || "",
-    item.nis || "",
-    item.nama || "",
-    item.kelas || "",
-    item.tanggal || "",
-    item.jam || "",
-    item.status || "Hadir",
-    item.qrId || "",
-    item.timestamp ? new Date(item.timestamp).toISOString() : new Date().toISOString()
-  ]);
-
-  return responseJSON({
-    success: true,
-    message: "Absensi " + item.nama + " berhasil dicatat ke Google Sheets.",
-    row: sheet.getLastRow()
-  });
-}
-
-/**
  * Tambah / update satu murid ke tab "MURID"
  */
 function handleSaveSingleMurid(ss, m) {
   if (!m) return responseJSON({ success: false, message: "Data murid kosong." });
 
-  var sheet = getOrCreateSheet(ss, "MURID", [
-    "ID_MURID", "NIS", "NAMA", "KELAS", "USERNAME", "PASSWORD", "NO_HP", "STATUS", "TANGGAL_DAFTAR"
-  ], "#1d4ed8");
-
+  var sheet = getOrCreateSheet(ss, "MURID", HEADERS_DEF.MURID, "#1d4ed8");
   var lastRow = sheet.getLastRow();
   var rowIndex = -1;
 
@@ -636,9 +693,7 @@ function handleSyncMurid(ss, muridList) {
     return responseJSON({ success: false, message: "Format daftar murid harus array." });
   }
 
-  var sheet = getOrCreateSheet(ss, "MURID", [
-    "ID_MURID", "NIS", "NAMA", "KELAS", "USERNAME", "PASSWORD", "NO_HP", "STATUS", "TANGGAL_DAFTAR"
-  ], "#1d4ed8");
+  var sheet = getOrCreateSheet(ss, "MURID", HEADERS_DEF.MURID, "#1d4ed8");
 
   if (sheet.getLastRow() > 1) {
     sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).clearContent();
@@ -674,10 +729,7 @@ function handleSyncMurid(ss, muridList) {
 function handleSaveAdmin(ss, adminUser) {
   if (!adminUser) return responseJSON({ success: false, message: "Data admin kosong." });
 
-  var sheet = getOrCreateSheet(ss, "ADMIN", [
-    "ID_ADMIN", "USERNAME", "EMAIL", "PASSWORD", "NAMA", "ROLE", "STATUS"
-  ], "#4338ca");
-
+  var sheet = getOrCreateSheet(ss, "ADMIN", HEADERS_DEF.ADMIN, "#4338ca");
   var lastRow = sheet.getLastRow();
   var rowIndex = -1;
 
@@ -731,17 +783,22 @@ function handleSyncAll(ss, fullData) {
     handleSyncMurid(ss, fullData.murid);
   }
 
-  // 2. Sync Absensi
+  // 2. Sync Absensi (Termasuk Kolom Titik Koordinat & Maps)
   if (fullData.attendance && Array.isArray(fullData.attendance)) {
-    var sheetAtt = getOrCreateSheet(ss, "ABSENSI", [
-      "ID_ABSENSI", "ID_MURID", "NIS", "NAMA", "KELAS", "TANGGAL", "JAM", "STATUS", "QR_ID", "TIMESTAMP"
-    ], "#047857");
+    var sheetAtt = getOrCreateSheet(ss, "ABSENSI", HEADERS_DEF.ABSENSI, "#047857");
 
     if (sheetAtt.getLastRow() > 1) {
       sheetAtt.getRange(2, 1, sheetAtt.getLastRow() - 1, sheetAtt.getLastColumn()).clearContent();
     }
 
     var attRows = fullData.attendance.map(function(item) {
+      var mapsUrl = item.mapsUrl || "";
+      if (!mapsUrl && item.latitude && item.longitude) {
+        mapsUrl = "https://www.google.com/maps?q=" + item.latitude + "," + item.longitude;
+      }
+      var jarakText = (item.jarakMeter !== null && item.jarakMeter !== undefined && item.jarakMeter !== "")
+        ? (item.jarakMeter + " m") : "";
+
       return [
         item.id || "",
         item.muridId || "",
@@ -750,7 +807,12 @@ function handleSyncAll(ss, fullData) {
         item.kelas || "",
         item.tanggal || "",
         item.jam || "",
+        item.shift || "Shift Reguler",
         item.status || "Hadir",
+        item.latitude !== null && item.latitude !== undefined ? item.latitude : "",
+        item.longitude !== null && item.longitude !== undefined ? item.longitude : "",
+        jarakText,
+        mapsUrl,
         item.qrId || "",
         item.timestamp ? new Date(item.timestamp).toISOString() : new Date().toISOString()
       ];
@@ -783,7 +845,7 @@ function handleSyncAll(ss, fullData) {
  * Simpan pengaturan sistem ke sheet "SETTINGS"
  */
 function handleUpdateSettings(ss, settingsObj) {
-  var sheet = getOrCreateSheet(ss, "SETTINGS", ["KEY", "VALUE"], "#374151");
+  var sheet = getOrCreateSheet(ss, "SETTINGS", HEADERS_DEF.SETTINGS, "#374151");
 
   if (sheet.getLastRow() > 1) {
     sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).clearContent();
@@ -793,7 +855,11 @@ function handleUpdateSettings(ss, settingsObj) {
   for (var key in settingsObj) {
     if (settingsObj.hasOwnProperty(key)) {
       if (key.toLowerCase().includes("secret") || key.toLowerCase().includes("token")) continue;
-      rows.push([key, String(settingsObj[key])]);
+      var val = settingsObj[key];
+      if (typeof val === "object") {
+        val = JSON.stringify(val);
+      }
+      rows.push([key, String(val)]);
     }
   }
 

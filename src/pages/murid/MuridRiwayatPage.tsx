@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.js';
 import { apiRequest } from '../../api/client.js';
 import { AttendanceRecord } from '../../types/index.js';
-import { ArrowLeft, Calendar, Search, Filter, CheckCircle2, Clock, FileText } from 'lucide-react';
+import { ArrowLeft, Calendar, Search, Filter, CheckCircle2, Clock, FileText, MapPin, ExternalLink } from 'lucide-react';
 
 interface MuridRiwayatPageProps {
   onNavigate: (route: string) => void;
@@ -42,7 +42,7 @@ export const MuridRiwayatPage: React.FC<MuridRiwayatPageProps> = ({ onNavigate }
       <div className="max-w-md w-full mx-auto flex items-center justify-between mb-5">
         <button
           onClick={() => onNavigate('/murid')}
-          className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition py-1 px-2.5 rounded-lg hover:bg-slate-900"
+          className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition py-1 px-2.5 rounded-lg hover:bg-slate-900 cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" /> Kembali
         </button>
@@ -83,29 +83,51 @@ export const MuridRiwayatPage: React.FC<MuridRiwayatPageProps> = ({ onNavigate }
             {filtered.map((item) => (
               <div
                 key={item.id}
-                className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center justify-between"
+                className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col gap-2.5"
               >
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
-                    <Calendar className="w-4 h-4" />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
+                      <Calendar className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-white">{item.tanggal}</div>
+                      <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                        {item.jam} WIB • <span className="text-indigo-400 font-sans">{item.shift || 'Reguler'}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-xs font-bold text-white">{item.tanggal}</div>
-                    <div className="text-[11px] text-slate-400 font-mono mt-0.5">{item.jam} WIB</div>
+                  <div className="text-right">
+                    <span
+                      className={`px-2.5 py-1 rounded-xl text-xs font-bold ${
+                        item.status === 'Hadir'
+                          ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/60'
+                          : 'bg-amber-950 text-amber-400 border border-amber-800/60'
+                      }`}
+                    >
+                      {item.status}
+                    </span>
                   </div>
                 </div>
-                <div className="text-right">
-                  <span
-                    className={`px-2.5 py-1 rounded-xl text-xs font-bold ${
-                      item.status === 'Hadir'
-                        ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/60'
-                        : 'bg-amber-950 text-amber-400 border border-amber-800/60'
-                    }`}
-                  >
-                    {item.status}
-                  </span>
-                  <div className="text-[10px] text-slate-500 font-mono mt-1">ID: {item.qrId}</div>
-                </div>
+
+                {item.latitude && item.longitude && (
+                  <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[11px]">
+                    <span className="text-slate-400 flex items-center gap-1 font-mono text-[10px]">
+                      <MapPin className="w-3.5 h-3.5 text-rose-400" /> {item.latitude.toFixed(5)}, {item.longitude.toFixed(5)}
+                      {item.jarakMeter !== null && item.jarakMeter !== undefined && (
+                        <span className="text-slate-500">({item.jarakMeter}m)</span>
+                      )}
+                    </span>
+                    <a
+                      href={item.mapsUrl || `https://www.google.com/maps?q=${item.latitude},${item.longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1 text-[11px]"
+                    >
+                      Google Maps <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                )}
               </div>
             ))}
           </div>

@@ -12,7 +12,9 @@ import {
   Clock,
   RefreshCw,
   ArrowRight,
-  ShieldCheck
+  ShieldCheck,
+  MapPin,
+  ExternalLink
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -267,7 +269,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                   <th className="py-2.5 px-3">Kelas</th>
                   <th className="py-2.5 px-3">Tanggal</th>
                   <th className="py-2.5 px-3">Jam (WIB)</th>
+                  <th className="py-2.5 px-3">Shift</th>
                   <th className="py-2.5 px-3">Status</th>
+                  <th className="py-2.5 px-3">Titik Koordinat / Maps</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
@@ -278,6 +282,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                     <td className="py-3 px-3 text-emerald-400 font-medium">{row.kelas}</td>
                     <td className="py-3 px-3 text-slate-400">{row.tanggal}</td>
                     <td className="py-3 px-3 font-mono text-slate-300">{row.jam}</td>
+                    <td className="py-3 px-3 text-indigo-400 font-medium">{row.shift || 'Reguler'}</td>
                     <td className="py-3 px-3">
                       <span
                         className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
@@ -288,6 +293,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                       >
                         {row.status}
                       </span>
+                    </td>
+                    <td className="py-3 px-3">
+                      {row.latitude && row.longitude ? (
+                        <a
+                          href={row.mapsUrl || `https://www.google.com/maps?q=${row.latitude},${row.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] font-mono text-blue-400 hover:text-blue-300 hover:underline bg-blue-950/40 border border-blue-800/40 px-2 py-0.5 rounded-lg"
+                        >
+                          <MapPin className="w-3 h-3 text-rose-400" />
+                          <span>{row.latitude.toFixed(4)}, {row.longitude.toFixed(4)}</span>
+                        </a>
+                      ) : (
+                        <span className="text-slate-500 font-mono text-[10px]">-</span>
+                      )}
                     </td>
                   </tr>
                 ))}

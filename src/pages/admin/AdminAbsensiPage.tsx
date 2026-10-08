@@ -9,7 +9,9 @@ import {
   Calendar,
   Clock,
   RefreshCw,
-  FileSpreadsheet
+  FileSpreadsheet,
+  MapPin,
+  ExternalLink
 } from 'lucide-react';
 
 export const AdminAbsensiPage: React.FC = () => {
@@ -157,7 +159,10 @@ export const AdminAbsensiPage: React.FC = () => {
                   <th className="py-3 px-4">Kelas</th>
                   <th className="py-3 px-4">Tanggal</th>
                   <th className="py-3 px-4">Jam (WIB)</th>
+                  <th className="py-3 px-4">Shift</th>
                   <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Titik Koordinat / Maps</th>
+                  <th className="py-3 px-4">Jarak</th>
                   <th className="py-3 px-4">Token QR</th>
                 </tr>
               </thead>
@@ -170,6 +175,7 @@ export const AdminAbsensiPage: React.FC = () => {
                     <td className="py-3 px-4 font-semibold text-emerald-400">{r.kelas}</td>
                     <td className="py-3 px-4 text-slate-300">{r.tanggal}</td>
                     <td className="py-3 px-4 font-mono font-semibold text-white">{r.jam}</td>
+                    <td className="py-3 px-4 text-indigo-400 font-semibold">{r.shift || 'Reguler'}</td>
                     <td className="py-3 px-4">
                       <span
                         className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
@@ -180,6 +186,24 @@ export const AdminAbsensiPage: React.FC = () => {
                       >
                         {r.status}
                       </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      {r.latitude && r.longitude ? (
+                        <a
+                          href={r.mapsUrl || `https://www.google.com/maps?q=${r.latitude},${r.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 font-mono text-[11px] text-blue-400 hover:text-blue-300 hover:underline bg-blue-950/40 border border-blue-800/40 px-2 py-0.5 rounded-lg"
+                        >
+                          <MapPin className="w-3 h-3 text-rose-400" />
+                          <span>{r.latitude.toFixed(5)}, {r.longitude.toFixed(5)}</span>
+                        </a>
+                      ) : (
+                        <span className="text-slate-500 font-mono text-[11px]">-</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-[11px] text-slate-300 font-mono">
+                      {r.jarakMeter !== null && r.jarakMeter !== undefined ? `${r.jarakMeter}m` : '-'}
                     </td>
                     <td className="py-3 px-4 font-mono text-[11px] text-slate-500">{r.qrId}</td>
                   </tr>

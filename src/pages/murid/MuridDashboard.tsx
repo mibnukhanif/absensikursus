@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.js';
 import { BrandLogo } from '../../components/BrandLogo.js';
-import { QRScannerModal } from '../../components/QRScannerModal.js';
+import { QRScannerModal, GeoLocationCoords } from '../../components/QRScannerModal.js';
 import { apiRequest } from '../../api/client.js';
-import { AttendanceRecord } from '../../types/index.js';
+import { AttendanceRecord, PresensiShift } from '../../types/index.js';
 import {
   QrCode,
   LogOut,
@@ -17,7 +17,10 @@ import {
   ChevronRight,
   Sparkles,
   RefreshCw,
-  Bell
+  Bell,
+  MapPin,
+  ExternalLink,
+  Layers
 } from 'lucide-react';
 
 interface MuridDashboardProps {
@@ -25,7 +28,7 @@ interface MuridDashboardProps {
 }
 
 export const MuridDashboard: React.FC<MuridDashboardProps> = ({ onNavigate }) => {
-  const { user, logout, refreshProfile } = useAuth();
+  const { user, logout, publicInfo } = useAuth();
   const murid = user && user.role === 'murid' ? user : null;
 
   const [hasAttended, setHasAttended] = useState<boolean>(false);
@@ -34,12 +37,26 @@ export const MuridDashboard: React.FC<MuridDashboardProps> = ({ onNavigate }) =>
   const [loading, setLoading] = useState<boolean>(true);
   const [scannerOpen, setScannerOpen] = useState<boolean>(false);
   const [scanProcessing, setScanProcessing] = useState<boolean>(false);
+  const [selectedShiftId, setSelectedShiftId] = useState<string>('');
   const [scanResult, setScanResult] = useState<{
-    type: 'success' | 'already' | 'invalid' | 'error';
+    type: 'success' | 'already' | 'invalid' | 'error' | 'location_error';
     title: string;
     message: string;
     data?: any;
   } | null>(null);
+
+  // Active shifts from public info
+  const activeShifts: PresensiShift[] = (publicInfo?.shifts && publicInfo.shifts.length > 0)
+    ? publicInfo.shifts.filter((s) => s.aktif)
+    : [
+        { id: 'shift-pagi', nama: 'Shift Pagi / Reguler', jamMasuk: '07:30', jamPulang: '15:00', aktif: true }
+      ];
+
+  useEffect(() => {
+    if (activeShifts.length > 0 && !selectedShiftId) {
+      setSelectedShiftId(activeShifts[0].id);
+    }
+  }, [activeShifts]);
 
   const fetchTodayStatus = async () => {
     try {
@@ -71,12 +88,18 @@ export const MuridDashboard: React.FC<MuridDashboardProps> = ({ onNavigate }) =>
     fetchHistory();
   }, []);
 
-  const handleScanSubmit = async (scannedCode: string) => {
+  const handleScanSubmit = async (scannedCode: string, coords?: GeoLocationCoords | null) => {
     setScanProcessing(true);
     try {
       const res = await apiRequest('/api/attendance/scan', {
         method: 'POST',
-        body: JSON.stringify({ qrIdentifier: scannedCode })
+        body: JSON.stringify({
+          qrIdentifier: scannedCode,
+          latitude: coords?.latitude || null,
+          longitude: coords?.longitude || null,
+          accuracy: coords?.accuracy || null,
+          shiftId: selectedShiftId || undefined
+        })
       });
 
       setScanProcessing(false);
@@ -101,11 +124,25 @@ export const MuridDashboard: React.FC<MuridDashboardProps> = ({ onNavigate }) =>
         });
         setHasAttended(true);
         setTodayRecord(res.data);
+      } else if (res.code === 'LOCATION_OUT_OF_BOUNDS') {
+        setScanResult({
+          type: 'location_error',
+          title: '📍 DI LUAR RADIUS SEKOLAH',
+          message: res.message || 'Posisi Anda berada di luar area presensi yang diizinkan.',
+          data: res.data
+        });
+      } else if (res.code === 'LOCATION_REQUIRED') {
+        setScanResult({
+          type: 'location_error',
+          title: '📍 IZIN LOKASI DIPERLUKAN',
+          message: res.message || 'Akses lokasi GPS perangkat wajib aktif untuk melakukan presensi.',
+          data: res.data
+        });
       } else if (res.code === 'QR_INVALID') {
         setScanResult({
           type: 'invalid',
           title: '🔴 QR CODE TIDAK VALID',
-          message: res.message || 'QR Code tidak dikenali. Silakan scan kembali QR Code absensi Digitalmeera.'
+          message: res.message || 'QR Code tidak dikenali. Silakan scan kembali QR Code absensi resmi Digitalmeera.'
         });
       } else {
         setScanResult({
@@ -141,7 +178,7 @@ export const MuridDashboard: React.FC<MuridDashboardProps> = ({ onNavigate }) =>
           </button>
           <button
             onClick={logout}
-            className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 transition"
+            className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 transition cursor-pointer"
             title="Keluar"
           >
             <LogOut className="w-4 h-4" />
@@ -203,10 +240,27 @@ export const MuridDashboard: React.FC<MuridDashboardProps> = ({ onNavigate }) =>
             <p className="text-xs leading-relaxed max-w-xs mb-3">{scanResult.message}</p>
 
             {scanResult.data && (
-              <div className="bg-slate-900/80 px-4 py-2 rounded-xl text-xs font-mono text-slate-300 mb-3 border border-slate-800 w-full max-w-xs text-left space-y-1">
-                <div>Tanggal: <span className="text-white font-semibold">{scanResult.data.tanggal}</span></div>
-                <div>Waktu: <span className="text-white font-semibold">{scanResult.data.jam} WIB</span></div>
-                <div>Status: <span className="text-emerald-400 font-semibold">{scanResult.data.status}</span></div>
+              <div className="bg-slate-900/80 px-4 py-2.5 rounded-2xl text-xs font-mono text-slate-300 mb-3 border border-slate-800 w-full max-w-xs text-left space-y-1">
+                {scanResult.data.tanggal && <div>Tanggal: <span className="text-white font-semibold">{scanResult.data.tanggal}</span></div>}
+                {scanResult.data.jam && <div>Waktu: <span className="text-white font-semibold">{scanResult.data.jam} WIB</span></div>}
+                {scanResult.data.shift && <div>Shift: <span className="text-indigo-400 font-semibold">{scanResult.data.shift}</span></div>}
+                {scanResult.data.status && <div>Status: <span className="text-emerald-400 font-semibold">{scanResult.data.status}</span></div>}
+                {scanResult.data.latitude && (
+                  <div className="pt-1 border-t border-slate-800 flex items-center justify-between">
+                    <span className="text-[11px] text-slate-400">GPS: {scanResult.data.latitude.toFixed(5)}, {scanResult.data.longitude.toFixed(5)}</span>
+                    <a
+                      href={`https://www.google.com/maps?q=${scanResult.data.latitude},${scanResult.data.longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-400 hover:underline flex items-center gap-1 text-[11px]"
+                    >
+                      <MapPin className="w-3 h-3" /> Maps
+                    </a>
+                  </div>
+                )}
+                {scanResult.data.jarakMeter !== undefined && (
+                  <div className="text-[11px] text-slate-400">Jarak: <span className="text-white font-bold">{scanResult.data.jarakMeter}m</span> dari sekolah</div>
+                )}
               </div>
             )}
 
@@ -217,16 +271,16 @@ export const MuridDashboard: React.FC<MuridDashboardProps> = ({ onNavigate }) =>
                     setScanResult(null);
                     setScannerOpen(true);
                   }}
-                  className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition"
+                  className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition cursor-pointer"
                 >
                   Scan Ulang
                 </button>
               )}
               <button
                 onClick={() => setScanResult(null)}
-                className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium transition"
+                className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium transition cursor-pointer"
               >
-                Tutup Notifikasi
+                Tutup
               </button>
             </div>
           </div>
@@ -259,20 +313,50 @@ export const MuridDashboard: React.FC<MuridDashboardProps> = ({ onNavigate }) =>
                 Sudah Absen
               </div>
               <p className="text-xs text-slate-300 max-w-xs mb-4">
-                Kehadiran Anda telah diverifikasi oleh server pada pukul{' '}
+                Kehadiran Anda telah diverifikasi pada pukul{' '}
                 <strong className="text-white font-mono">{todayRecord.jam} WIB</strong> dengan status{' '}
                 <strong className="text-emerald-400">{todayRecord.status}</strong>.
               </p>
 
-              <div className="w-full bg-slate-950/60 rounded-2xl p-3 border border-slate-800/80 text-xs grid grid-cols-2 gap-2 text-left">
-                <div>
-                  <span className="text-slate-500 text-[10px] block">Waktu Tercatat</span>
-                  <span className="font-mono font-bold text-white">{todayRecord.jam} WIB</span>
+              {/* Attendance Details Grid */}
+              <div className="w-full bg-slate-950/60 rounded-2xl p-3.5 border border-slate-800/80 text-xs space-y-2 text-left mb-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-slate-500 text-[10px] block">Waktu Tercatat</span>
+                    <span className="font-mono font-bold text-white">{todayRecord.jam} WIB</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 text-[10px] block">Shift Presensi</span>
+                    <span className="font-bold text-indigo-400">{todayRecord.shift || 'Shift Reguler'}</span>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-slate-500 text-[10px] block">Status Presensi</span>
-                  <span className="font-bold text-emerald-400">{todayRecord.status}</span>
-                </div>
+
+                {todayRecord.latitude && todayRecord.longitude && (
+                  <div className="pt-2 border-t border-slate-800/80 flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-[11px] flex items-center gap-1">
+                        <MapPin className="w-3.5 h-3.5 text-rose-400" /> Titik Koordinat:
+                      </span>
+                      <span className="font-mono text-emerald-300 font-semibold text-[11px]">
+                        {todayRecord.latitude.toFixed(6)}, {todayRecord.longitude.toFixed(6)}
+                      </span>
+                    </div>
+                    {todayRecord.jarakMeter !== null && todayRecord.jarakMeter !== undefined && (
+                      <div className="text-[11px] text-slate-400">
+                        Jarak ke Sekolah: <strong className="text-white">{todayRecord.jarakMeter} meter</strong>{' '}
+                        <span className="text-emerald-400">({todayRecord.lokasiStatus || 'Dalam Radius'})</span>
+                      </div>
+                    )}
+                    <a
+                      href={todayRecord.mapsUrl || `https://www.google.com/maps?q=${todayRecord.latitude},${todayRecord.longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 w-full py-2 px-3 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 font-semibold text-xs flex items-center justify-center gap-1.5 transition"
+                    >
+                      <MapPin className="w-3.5 h-3.5 text-blue-400" /> Lihat Lokasi di Google Maps
+                    </a>
+                  </div>
+                )}
               </div>
             </div>
           ) : (
@@ -285,14 +369,40 @@ export const MuridDashboard: React.FC<MuridDashboardProps> = ({ onNavigate }) =>
                 <span className="w-2 h-2 rounded-full bg-amber-400"></span>
                 Belum Absen
               </div>
-              <p className="text-xs text-slate-400 max-w-xs mb-6">
-                Silakan scan QR Code statis Digitalmeera yang tersedia di lokasi untuk mencatat kehadiran hari ini.
+
+              {/* Shift Selector if multiple */}
+              {activeShifts.length > 1 ? (
+                <div className="w-full my-3 text-left">
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1 flex items-center gap-1">
+                    <Layers className="w-3.5 h-3.5 text-indigo-400" /> Pilih Shift Presensi:
+                  </label>
+                  <select
+                    value={selectedShiftId}
+                    onChange={(e) => setSelectedShiftId(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    {activeShifts.map((sh) => (
+                      <option key={sh.id} value={sh.id}>
+                        {sh.nama} ({sh.jamMasuk} - {sh.jamPulang})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="my-2 px-3 py-1 rounded-full bg-slate-800 text-slate-300 text-[11px] font-medium flex items-center gap-1">
+                  <Layers className="w-3 h-3 text-emerald-400" />
+                  <span>{activeShifts[0]?.nama || 'Shift Reguler'} ({activeShifts[0]?.jamMasuk} - {activeShifts[0]?.jamPulang})</span>
+                </div>
+              )}
+
+              <p className="text-xs text-slate-400 max-w-xs mb-5">
+                Scan QR Code di lokasi sekolah. Titik koordinat GPS Anda akan otomatis diverifikasi.
               </p>
 
               {/* Big Scan Button */}
               <button
                 onClick={() => setScannerOpen(true)}
-                className="w-full py-4 px-6 bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white font-black text-sm tracking-wide rounded-2xl shadow-xl shadow-emerald-950/60 flex items-center justify-center gap-3 transition transform active:scale-95"
+                className="w-full py-4 px-6 bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white font-black text-sm tracking-wide rounded-2xl shadow-xl shadow-emerald-950/60 flex items-center justify-center gap-3 transition transform active:scale-95 cursor-pointer"
               >
                 <QrCode className="w-5 h-5 animate-pulse" />
                 <span>SCAN QR ABSENSI</span>
@@ -301,15 +411,15 @@ export const MuridDashboard: React.FC<MuridDashboardProps> = ({ onNavigate }) =>
           )}
         </div>
 
-        {/* Quick Recent Attendance Cards */}
+        {/* RECENT ATTENDANCE HISTORY */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between px-1">
-            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-              <History className="w-3.5 h-3.5 text-emerald-400" /> Riwayat Kehadiran Terbaru
-            </h4>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold text-slate-400 tracking-wider uppercase flex items-center gap-1.5">
+              <History className="w-4 h-4 text-emerald-400" /> RIWAYAT TERAKHIR
+            </h3>
             <button
               onClick={() => onNavigate('/murid/riwayat')}
-              className="text-xs text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-0.5"
+              className="text-xs text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-0.5 cursor-pointer"
             >
               Lihat Semua <ChevronRight className="w-3.5 h-3.5" />
             </button>
@@ -324,24 +434,44 @@ export const MuridDashboard: React.FC<MuridDashboardProps> = ({ onNavigate }) =>
               {history.slice(0, 4).map((rec) => (
                 <div
                   key={rec.id}
-                  className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between"
+                  className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col gap-2"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold text-xs">
-                      <CheckCircle2 className="w-4 h-4" />
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold text-xs">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-white">{rec.tanggal}</div>
+                        <div className="text-[11px] text-slate-400 font-mono">
+                          {rec.jam} WIB • <span className="text-indigo-400 font-sans">{rec.shift || 'Reguler'}</span>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-xs font-bold text-white">{rec.tanggal}</div>
-                      <div className="text-[11px] text-slate-400 font-mono">{rec.jam} WIB</div>
-                    </div>
+                    <span className={`px-2.5 py-1 rounded-xl text-[11px] font-bold ${
+                      rec.status === 'Hadir'
+                        ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/60'
+                        : 'bg-amber-950 text-amber-400 border border-amber-800/60'
+                    }`}>
+                      {rec.status}
+                    </span>
                   </div>
-                  <span className={`px-2.5 py-1 rounded-xl text-[11px] font-bold ${
-                    rec.status === 'Hadir'
-                      ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/60'
-                      : 'bg-amber-950 text-amber-400 border border-amber-800/60'
-                  }`}>
-                    {rec.status}
-                  </span>
+
+                  {rec.latitude && rec.longitude && (
+                    <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px]">
+                      <span className="text-slate-400 flex items-center gap-1 font-mono text-[10px]">
+                        <MapPin className="w-3 h-3 text-rose-400" /> {rec.latitude.toFixed(5)}, {rec.longitude.toFixed(5)}
+                      </span>
+                      <a
+                        href={rec.mapsUrl || `https://www.google.com/maps?q=${rec.latitude},${rec.longitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1 text-[11px]"
+                      >
+                        Lihat Maps <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -353,7 +483,7 @@ export const MuridDashboard: React.FC<MuridDashboardProps> = ({ onNavigate }) =>
       <nav className="fixed bottom-0 inset-x-0 z-40 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 px-6 py-2.5 flex items-center justify-around sm:hidden">
         <button
           onClick={() => onNavigate('/murid')}
-          className="flex flex-col items-center gap-1 text-emerald-400"
+          className="flex flex-col items-center gap-1 text-emerald-400 cursor-pointer"
         >
           <Calendar className="w-5 h-5" />
           <span className="text-[10px] font-semibold">Absensi</span>
@@ -361,7 +491,7 @@ export const MuridDashboard: React.FC<MuridDashboardProps> = ({ onNavigate }) =>
 
         <button
           onClick={() => setScannerOpen(true)}
-          className="-mt-5 p-3 rounded-full bg-gradient-to-tr from-emerald-600 to-indigo-600 text-white shadow-lg shadow-emerald-950/60 border-2 border-slate-900"
+          className="-mt-5 p-3 rounded-full bg-gradient-to-tr from-emerald-600 to-indigo-600 text-white shadow-lg shadow-emerald-950/60 border-2 border-slate-900 cursor-pointer"
           title="Scan QR"
         >
           <QrCode className="w-6 h-6" />
@@ -369,7 +499,7 @@ export const MuridDashboard: React.FC<MuridDashboardProps> = ({ onNavigate }) =>
 
         <button
           onClick={() => onNavigate('/murid/riwayat')}
-          className="flex flex-col items-center gap-1 text-slate-400 hover:text-white"
+          className="flex flex-col items-center gap-1 text-slate-400 hover:text-white cursor-pointer"
         >
           <History className="w-5 h-5" />
           <span className="text-[10px] font-medium">Riwayat</span>
@@ -377,14 +507,14 @@ export const MuridDashboard: React.FC<MuridDashboardProps> = ({ onNavigate }) =>
 
         <button
           onClick={() => onNavigate('/murid/profil')}
-          className="flex flex-col items-center gap-1 text-slate-400 hover:text-white"
+          className="flex flex-col items-center gap-1 text-slate-400 hover:text-white cursor-pointer"
         >
           <User className="w-5 h-5" />
           <span className="text-[10px] font-medium">Profil</span>
         </button>
       </nav>
 
-      {/* QR Scanner Modal */}
+      {/* QR Scanner Modal with GPS Location Integration */}
       <QRScannerModal
         isOpen={scannerOpen}
         onClose={() => setScannerOpen(false)}

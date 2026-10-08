@@ -20,6 +20,15 @@ export interface MuridUser {
 
 export type AuthUser = (AdminUser & { role: 'admin' }) | (MuridUser & { role: 'murid' });
 
+export interface PresensiShift {
+  id: string;
+  nama: string;         // e.g. "Shift Pagi / Reguler", "Shift Siang"
+  jamMasuk: string;     // e.g. "07:30"
+  jamPulang: string;    // e.g. "15:00"
+  toleransiMenit?: number;
+  aktif: boolean;
+}
+
 export interface AttendanceRecord {
   id: string;
   muridId: string;
@@ -29,6 +38,13 @@ export interface AttendanceRecord {
   tanggal: string; // YYYY-MM-DD
   jam: string;     // HH:mm:ss
   status: 'Hadir' | 'Terlambat' | 'Izin' | 'Sakit';
+  shift?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  accuracy?: number | null;
+  jarakMeter?: number | null;
+  lokasiStatus?: 'Sesuai Radius' | 'Luar Radius' | 'Lokasi Tidak Terdeteksi';
+  mapsUrl?: string;
   qrId: string;
   timestamp: number;
   createdAt: string;
@@ -52,11 +68,17 @@ export interface SystemSettings {
   adminEmail: string;
   jamMasuk: string;
   jamPulang: string;
+  shifts: PresensiShift[];
+  targetLatitude: number;
+  targetLongitude: number;
+  radiusMeters: number;
+  enforceLocation: boolean;
   footerText: string;
   googleSheetsId?: string;
   googleSheetsScriptUrl?: string;
   googleSheetsSecretToken?: string;
   googleSheetsSyncEnabled?: boolean;
+  updatedAt?: string;
 }
 
 export interface DashboardSummary {
@@ -80,6 +102,11 @@ export interface PublicInfo {
   adminWhatsApp: string;
   footerText: string;
   hasAdmin: boolean;
+  shifts?: PresensiShift[];
+  targetLatitude?: number;
+  targetLongitude?: number;
+  radiusMeters?: number;
+  enforceLocation?: boolean;
 }
 
 export interface AuditLog {
