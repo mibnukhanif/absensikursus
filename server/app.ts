@@ -29,21 +29,158 @@ import {
   sendToGoogleSheets,
   verifyAdminWithSheets,
   verifyMuridWithSheets,
-  pullUsersFromSheets
+  pullUsersFromSheets,
+  pullAllDataFromSheets
 } from './sheets.js';
 
 dotenv.config();
 
 const app = express();
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
 
 // Bootstrap admin from environment variables if set
 bootstrapInitialAdminIfConfigured().catch((err) => {
   console.error('Error during initial admin bootstrap:', err);
 });
+
+/**
+ * Sinkronisasi menyeluruh dari Google Spreadsheet ke database server
+ */
+export async function syncDataFromGoogleSheets(): Promise<{
+  success: boolean;
+  message: string;
+  stats?: { admins: number; murid: number; attendance: number };
+}> {
+  try {
+    const pullResult = await pullAllDataFromSheets();
+    if (!pullResult.success || !pullResult.data) {
+      return {
+        success: false,
+        message: pullResult.message || 'Gagal menarik data dari Google Spreadsheet.'
+      };
+    }
+
+    const { admins, murid, attendance } = pullResult.data;
+    let importedAdmin = 0;
+    let importedMurid = 0;
+    let importedAtt = 0;
+
+    // 1. Sync Murid
+    if (murid && Array.isArray(murid) && murid.length > 0) {
+      for (const m of murid) {
+        if (!m.nis) continue;
+        const cleanNis = String(m.nis).trim();
+        const existing = db.findMuridByNIS(cleanNis);
+        const passHash = m.password
+          ? await hashPassword(String(m.password))
+          : (existing ? existing.passwordHash : await hashPassword(cleanNis));
+
+        if (existing) {
+          db.updateMurid(existing.id, {
+            nama: m.nama || existing.nama,
+            kelas: m.kelas || existing.kelas,
+            username: m.username || existing.username || cleanNis,
+            passwordHash: passHash,
+            noHp: m.noHp !== undefined ? String(m.noHp) : existing.noHp,
+            status: m.status === 'nonaktif' ? 'nonaktif' : 'aktif'
+          });
+        } else {
+          db.addMurid({
+            id: m.id || ('murid-' + cleanNis),
+            nis: cleanNis,
+            nama: m.nama || 'Murid ' + cleanNis,
+            kelas: m.kelas || 'Umum',
+            username: m.username || cleanNis,
+            passwordHash: passHash,
+            noHp: m.noHp ? String(m.noHp) : '',
+            status: m.status === 'nonaktif' ? 'nonaktif' : 'aktif',
+            tanggalDaftar: m.tanggalDaftar || new Date().toISOString().split('T')[0],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+        }
+        importedMurid++;
+      }
+    }
+
+    // 2. Sync Admin
+    if (admins && Array.isArray(admins) && admins.length > 0) {
+      for (const a of admins) {
+        if (!a.username && !a.email) continue;
+        const cleanUser = String(a.username || '').trim();
+        const cleanEmail = String(a.email || '').trim();
+        const existing = db.findAdminByEmailOrUsername(cleanUser || cleanEmail);
+        const passHash = a.password
+          ? await hashPassword(String(a.password))
+          : (existing ? existing.passwordHash : await hashPassword('admin12345'));
+
+        if (existing) {
+          db.updateAdmin(existing.id, {
+            name: a.name || existing.name,
+            username: cleanUser || existing.username,
+            email: cleanEmail || existing.email,
+            passwordHash: passHash,
+            role: a.role || existing.role
+          });
+        } else {
+          db.addAdmin({
+            id: a.id || ('admin-' + Date.now()),
+            name: a.name || 'Administrator',
+            username: cleanUser || 'admin',
+            email: cleanEmail || 'admin@digitalmeera.edu',
+            passwordHash: passHash,
+            role: a.role || 'admin',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+        }
+        importedAdmin++;
+      }
+    }
+
+    // 3. Sync Attendance (jika ada data absensi dari sheet)
+    if (attendance && Array.isArray(attendance) && attendance.length > 0) {
+      const currentAtt = db.getAttendance();
+      const existingIds = new Set(currentAtt.map((a) => a.id));
+      for (const att of attendance) {
+        if (!att.id || existingIds.has(att.id)) continue;
+        db.addAttendance(att);
+        existingIds.add(att.id);
+        importedAtt++;
+      }
+    }
+
+    return {
+      success: true,
+      message: `Sinkronisasi berhasil: ${importedMurid} murid, ${importedAdmin} admin, ${importedAtt} log presensi.`,
+      stats: {
+        admins: importedAdmin,
+        murid: importedMurid,
+        attendance: importedAtt
+      }
+    };
+  } catch (err: any) {
+    console.error('[SYNC ERROR]', err);
+    return {
+      success: false,
+      message: 'Gagal sinkronisasi data: ' + err.message
+    };
+  }
+}
+
+// Auto-sync initial data from Google Spreadsheet on startup
+setTimeout(() => {
+  syncDataFromGoogleSheets().then((res) => {
+    if (res.success) {
+      console.log(`[BOOTSTRAP SHEETS SYNC] ${res.message}`);
+    }
+  }).catch((err) => {
+    console.warn('[BOOTSTRAP SHEETS SYNC] Gagal sinkronisasi data awal:', err.message);
+  });
+}, 1000);
 
 // Create Router for API endpoints
 const router = express.Router();
@@ -345,6 +482,9 @@ router.post('/auth/admin-login', async (req: Request, res: Response) => {
     });
 
     db.logAction(admin.name, 'admin', 'Login Admin', `Admin ${admin.email} berhasil masuk ke dashboard.`);
+
+    // Sinkronkan data terbaru dari spreadsheet di latar belakang saat admin login
+    syncDataFromGoogleSheets().catch((e) => console.warn('[LOGIN SYNC]', e.message));
 
     return res.json({
       success: true,
@@ -805,7 +945,7 @@ router.post('/admin/murid', authenticateToken, requireAdmin, async (req: Authent
     };
 
     db.addMurid(newMurid);
-    asyncSyncMuridToSheets(newMurid);
+    asyncSyncMuridToSheets(newMurid, password);
     db.logAction(req.user!.name, 'admin', 'Tambah Murid', `Menambahkan murid ${newMurid.nama} (${newMurid.nis})`);
 
     res.status(201).json({
@@ -865,7 +1005,7 @@ router.put('/admin/murid/:id', authenticateToken, requireAdmin, async (req: Auth
     }
 
     const updated = db.updateMurid(id, updates);
-    if (updated) asyncSyncMuridToSheets(updated);
+    if (updated) asyncSyncMuridToSheets(updated, password || undefined);
     db.logAction(req.user!.name, 'admin', 'Edit Murid', `Memperbarui data murid ${existing.nama} (${existing.nis})`);
 
     res.json({
@@ -1294,6 +1434,25 @@ router.post('/admin/sheets/pull-users', authenticateToken, requireAdmin, async (
   } catch (err: any) {
     console.error('Error pulling users from sheets:', err);
     res.status(500).json({ success: false, message: 'Gagal menarik data user: ' + err.message });
+  }
+});
+
+// Admin: Tarik Seluruh Data (Murid, Admin, Absensi) dari Google Spreadsheet
+router.post('/admin/sheets/pull-all', authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const result = await syncDataFromGoogleSheets();
+    if (result.success) {
+      db.logAction(
+        req.user!.name,
+        'admin',
+        'Sinkronisasi Penuh Spreadsheet',
+        result.message
+      );
+    }
+    res.json(result);
+  } catch (err: any) {
+    console.error('Error syncing all from sheets:', err);
+    res.status(500).json({ success: false, message: 'Gagal menyinkronkan data: ' + err.message });
   }
 });
 

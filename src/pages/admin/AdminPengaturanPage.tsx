@@ -32,7 +32,7 @@ import {
 } from 'lucide-react';
 
 export const AdminPengaturanPage: React.FC = () => {
-  const { refreshProfile } = useAuth();
+  const { refreshProfile, fetchPublicInfo } = useAuth();
   const [settings, setSettings] = useState<SystemSettings>({
     appName: '',
     subTitle: '',
@@ -69,20 +69,54 @@ export const AdminPengaturanPage: React.FC = () => {
   const [showAddShift, setShowAddShift] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
 
-  // Logo file upload handler
+  // Logo file upload handler with canvas compression
   const handleLogoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Ukuran file logo maksimal 2MB.');
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Ukuran file logo maksimal 10MB.');
       return;
     }
     const reader = new FileReader();
     reader.onload = (event) => {
-      const result = event.target?.result as string;
-      if (result) {
-        setSettings((prev) => ({ ...prev, appLogo: result }));
-      }
+      const rawUrl = event.target?.result as string;
+      if (!rawUrl) return;
+      const img = new window.Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const maxDim = 256;
+          let width = img.width;
+          let height = img.height;
+          if (width > height) {
+            if (width > maxDim) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            }
+          } else {
+            if (height > maxDim) {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressed = canvas.toDataURL('image/png');
+            setSettings((prev) => ({ ...prev, appLogo: compressed }));
+          } else {
+            setSettings((prev) => ({ ...prev, appLogo: rawUrl }));
+          }
+        } catch {
+          setSettings((prev) => ({ ...prev, appLogo: rawUrl }));
+        }
+      };
+      img.onerror = () => {
+        setSettings((prev) => ({ ...prev, appLogo: rawUrl }));
+      };
+      img.src = rawUrl;
     };
     reader.readAsDataURL(file);
   };
@@ -224,6 +258,7 @@ export const AdminPengaturanPage: React.FC = () => {
     if (res.success && res.data) {
       setSettings(res.data);
       setSavedSuccess(true);
+      await fetchPublicInfo();
       setTimeout(() => setSavedSuccess(false), 3000);
       fetchData();
     }

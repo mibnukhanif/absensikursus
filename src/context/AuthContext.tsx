@@ -13,6 +13,7 @@ interface AuthContextType {
   setupInitialAdmin: (data: { name: string; email: string; username: string; password: string }) => Promise<{ success: boolean; message?: string }>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  fetchPublicInfo: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -148,7 +149,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loginAdmin,
         setupInitialAdmin,
         logout,
-        refreshProfile
+        refreshProfile,
+        fetchPublicInfo
       }}
     >
       {children}

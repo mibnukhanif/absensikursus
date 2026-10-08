@@ -344,6 +344,18 @@ function doPost(e) {
       case "GET_USERS":
         return handleGetUsers(ss);
 
+      // 3b. Ambil Seluruh Log Presensi dari Spreadsheet
+      case "GET_ATTENDANCE":
+        return handleGetAttendance(ss);
+
+      // 3c. Ambil Pengaturan dari Spreadsheet
+      case "GET_SETTINGS":
+        return handleGetSettings(ss);
+
+      // 3d. Ambil Seluruh Data (Admin, Murid, Presensi, Settings) untuk Sinkronisasi Penuh ke Web
+      case "GET_ALL_DATA":
+        return handleGetAllData(ss);
+
       // 4. Catat Kehadiran (Termasuk Titik Koordinat GPS, Jarak, Shift, & Link Maps)
       case "RECORD_ATTENDANCE":
         return handleRecordAttendance(ss, data);
@@ -682,6 +694,147 @@ function handleGetUsers(ss) {
     data: {
       admins: admins,
       murid: murid
+    }
+  });
+}
+
+/**
+ * Mengambil seluruh data riwayat absensi dari tab "ABSENSI"
+ */
+function handleGetAttendance(ss) {
+  var sheet = ss.getSheetByName("ABSENSI");
+  if (!sheet || sheet.getLastRow() <= 1) {
+    return responseJSON({ success: true, data: [] });
+  }
+
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var colMap = {};
+  for (var h = 0; h < headers.length; h++) {
+    var cName = String(headers[h] || "").trim().toUpperCase();
+    if (cName) colMap[cName] = h;
+  }
+
+  var rawValues = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  var attendanceList = [];
+
+  for (var i = 0; i < rawValues.length; i++) {
+    var row = rawValues[i];
+    function getVal(colName) {
+      var idx = colMap[colName];
+      if (idx !== undefined && idx < row.length) {
+        return row[idx];
+      }
+      return "";
+    }
+
+    var id = String(getVal("ID_ABSENSI") || ("att-" + i));
+    var muridId = String(getVal("ID_MURID") || "");
+    var nis = String(getVal("NIS") || "");
+    var nama = String(getVal("NAMA") || "");
+    var kelas = String(getVal("KELAS") || "");
+    var tanggal = String(getVal("TANGGAL") || "");
+    var jam = String(getVal("JAM") || "");
+    var shift = String(getVal("SHIFT") || "Shift Reguler");
+    var status = String(getVal("STATUS") || "Hadir");
+    var latitude = getVal("LATITUDE");
+    var longitude = getVal("LONGITUDE");
+    var jarak = getVal("JARAK_METER");
+    var mapsUrl = String(getVal("LOKASI_MAPS") || "");
+    var qrId = String(getVal("QR_ID") || "DIGITALMEERA-ABSENSI-001");
+    var timestamp = getVal("TIMESTAMP");
+
+    if (!nis && !nama) continue;
+
+    if (tanggal instanceof Date) {
+      tanggal = Utilities.formatDate(tanggal, "Asia/Jakarta", "yyyy-MM-dd");
+    }
+    if (jam instanceof Date) {
+      jam = Utilities.formatDate(jam, "Asia/Jakarta", "HH:mm:ss");
+    }
+
+    var parsedLat = (latitude !== "" && latitude !== null && !isNaN(Number(latitude))) ? Number(latitude) : null;
+    var parsedLon = (longitude !== "" && longitude !== null && !isNaN(Number(longitude))) ? Number(longitude) : null;
+    var parsedJarak = (jarak !== "" && jarak !== null) ? parseInt(String(jarak).replace(/[^\d]/g, ""), 10) || null : null;
+    var parsedTs = timestamp ? (new Date(timestamp).getTime() || Date.now()) : Date.now();
+
+    attendanceList.push({
+      id: id,
+      muridId: muridId,
+      nis: nis,
+      nama: nama,
+      kelas: kelas,
+      tanggal: String(tanggal),
+      jam: String(jam),
+      shift: shift,
+      status: status,
+      latitude: parsedLat,
+      longitude: parsedLon,
+      jarakMeter: parsedJarak,
+      mapsUrl: mapsUrl,
+      qrId: qrId,
+      timestamp: parsedTs,
+      createdAt: new Date(parsedTs).toISOString()
+    });
+  }
+
+  return responseJSON({
+    success: true,
+    data: attendanceList
+  });
+}
+
+/**
+ * Mengambil pengaturan dari sheet "SETTINGS"
+ */
+function handleGetSettings(ss) {
+  var sheet = ss.getSheetByName("SETTINGS");
+  if (!sheet || sheet.getLastRow() <= 1) {
+    return responseJSON({ success: true, data: {} });
+  }
+
+  var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 2).getValues();
+  var settingsObj = {};
+
+  for (var i = 0; i < rows.length; i++) {
+    var key = String(rows[i][0] || "").trim();
+    var val = rows[i][1];
+    if (key) {
+      try {
+        settingsObj[key] = JSON.parse(val);
+      } catch (e) {
+        settingsObj[key] = val;
+      }
+    }
+  }
+
+  return responseJSON({
+    success: true,
+    data: settingsObj
+  });
+}
+
+/**
+ * Mengambil seluruh data (Admin, Murid, Absensi, Settings) untuk sinkronisasi menyeluruh
+ */
+function handleGetAllData(ss) {
+  var usersResult = handleGetUsers(ss);
+  var usersData = usersResult ? JSON.parse(usersResult.getContent()).data : { admins: [], murid: [] };
+
+  var attResult = handleGetAttendance(ss);
+  var attData = attResult ? JSON.parse(attResult.getContent()).data : [];
+
+  var setResult = handleGetSettings(ss);
+  var setData = setResult ? JSON.parse(setResult.getContent()).data : {};
+
+  return responseJSON({
+    success: true,
+    data: {
+      admins: usersData.admins || [],
+      murid: usersData.murid || [],
+      attendance: attData || [],
+      settings: setData || {}
     }
   });
 }

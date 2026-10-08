@@ -113,6 +113,57 @@ export async function pullUsersFromSheets(): Promise<{
 }
 
 /**
+ * Tarik seluruh data (Admin, Murid, Absensi, Settings) dari Google Spreadsheet
+ */
+export async function pullAllDataFromSheets(): Promise<{
+  success: boolean;
+  data?: {
+    admins?: any[];
+    murid?: any[];
+    attendance?: any[];
+    settings?: any;
+  };
+  message?: string;
+}> {
+  try {
+    // 1. Coba panggil GET_ALL_DATA
+    const allRes = await sendToGoogleSheets('GET_ALL_DATA', {});
+    if (allRes.success && allRes.data && allRes.data.data) {
+      return {
+        success: true,
+        data: allRes.data.data,
+        message: 'Berhasil menarik seluruh data dari Google Spreadsheet.'
+      };
+    }
+
+    // 2. Fallback ke GET_USERS jika script belum di-update ke versi terbaru
+    const usersRes = await sendToGoogleSheets('GET_USERS', {});
+    if (usersRes.success && usersRes.data && usersRes.data.data) {
+      return {
+        success: true,
+        data: {
+          admins: usersRes.data.data.admins || [],
+          murid: usersRes.data.data.murid || [],
+          attendance: [],
+          settings: {}
+        },
+        message: 'Berhasil menarik data pengguna dari Google Spreadsheet.'
+      };
+    }
+
+    return {
+      success: false,
+      message: allRes.message || usersRes.message || 'Gagal menarik data dari Google Spreadsheet.'
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: 'Koneksi ke spreadsheet gagal: ' + err.message
+    };
+  }
+}
+
+/**
  * Mirror attendance record to Google Sheets asynchronously
  */
 export function asyncMirrorAttendanceToSheets(record: AttendanceRecord) {
@@ -152,15 +203,28 @@ export function asyncMirrorAttendanceToSheets(record: AttendanceRecord) {
 /**
  * Sync single student or student list to Google Sheets asynchronously
  */
-export function asyncSyncMuridToSheets(murid: MuridUser | MuridUser[]) {
-  const action = Array.isArray(murid) ? 'SYNC_MURID' : 'ADD_MURID';
-  sendToGoogleSheets(action, murid)
-    .then((result) => {
-      if (result.success) {
-        console.log(`[SHEETS SYNC] Berhasil simpan data murid ke Spreadsheet.`);
-      }
-    })
-    .catch((err) => console.error('[SHEETS SYNC MURID ERROR]', err));
+export function asyncSyncMuridToSheets(murid: MuridUser | MuridUser[], plainPassword?: string) {
+  if (Array.isArray(murid)) {
+    sendToGoogleSheets('SYNC_MURID', murid)
+      .then((result) => {
+        if (result.success) {
+          console.log(`[SHEETS SYNC] Berhasil simpan data murid ke Spreadsheet.`);
+        }
+      })
+      .catch((err) => console.error('[SHEETS SYNC MURID ERROR]', err));
+  } else {
+    const payload = {
+      ...murid,
+      password: plainPassword || (murid as any).password || murid.nis
+    };
+    sendToGoogleSheets('ADD_MURID', payload)
+      .then((result) => {
+        if (result.success) {
+          console.log(`[SHEETS SYNC] Berhasil simpan data murid ${murid.nama} ke Spreadsheet.`);
+        }
+      })
+      .catch((err) => console.error('[SHEETS SYNC MURID ERROR]', err));
+  }
 }
 
 /**

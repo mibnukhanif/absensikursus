@@ -14,7 +14,9 @@ import {
   ArrowRight,
   ShieldCheck,
   MapPin,
-  ExternalLink
+  ExternalLink,
+  FileSpreadsheet,
+  CheckCircle2
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -26,6 +28,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
   const [chartData, setChartData] = useState<ChartDayData[]>([]);
   const [recentAttendance, setRecentAttendance] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncingSheets, setSyncingSheets] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
 
   const fetchDashboard = async () => {
     try {
@@ -43,8 +47,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
     }
   };
 
+  const handleSyncSheets = async () => {
+    try {
+      setSyncingSheets(true);
+      setSyncMsg(null);
+      const res = await apiRequest('/api/admin/sheets/pull-all', { method: 'POST' });
+      if (res.success) {
+        setSyncMsg(res.message || 'Sinkronisasi dengan Google Spreadsheet berhasil!');
+        await fetchDashboard();
+      } else {
+        setSyncMsg(res.message || 'Gagal sinkronisasi dengan Google Spreadsheet.');
+      }
+    } catch (err: any) {
+      setSyncMsg('Gagal terhubung ke spreadsheet: ' + err.message);
+    } finally {
+      setSyncingSheets(false);
+      setTimeout(() => setSyncMsg(null), 5000);
+    }
+  };
+
   useEffect(() => {
     fetchDashboard();
+    // Auto-sync spreadsheet in background when entering dashboard
+    handleSyncSheets();
   }, []);
 
   const maxChartCount = Math.max(...chartData.map((d) => d.count), 5);
@@ -54,29 +79,60 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
       {/* Top Welcome & Date Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-5 rounded-3xl">
         <div>
-          <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">Panel Kontrol</span>
-          <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">Dashboard Presensi</h1>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">Panel Kontrol</span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              Spreadsheet Terhubung
+            </span>
+          </div>
+          <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight mt-0.5">Dashboard Presensi</h1>
           <p className="text-xs text-slate-400 mt-1">
-            Pantau kehadiran murid hari ini secara real-time berdasarkan waktu server Asia/Jakarta.
+            Pantau kehadiran murid hari ini secara real-time tersinkronisasi dua arah dengan Google Spreadsheet.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={handleSyncSheets}
+            disabled={syncingSheets}
+            className="px-3.5 py-2.5 rounded-2xl bg-indigo-600/80 hover:bg-indigo-600 text-white font-bold text-xs flex items-center gap-2 transition shadow-md shadow-indigo-950/40 disabled:opacity-50 cursor-pointer"
+            title="Tarik & Sinkronkan Data dari Google Spreadsheet"
+          >
+            <FileSpreadsheet className={`w-4 h-4 ${syncingSheets ? 'animate-bounce text-emerald-300' : ''}`} />
+            {syncingSheets ? 'Menyinkronkan...' : 'Sinkron Spreadsheet'}
+          </button>
           <button
             onClick={fetchDashboard}
-            className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
-            title="Refresh Data"
+            className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer"
+            title="Refresh Data Lokal"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-emerald-400' : ''}`} />
           </button>
           <button
             onClick={() => onNavigate('/admin/qrcode')}
-            className="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-2 transition shadow-md shadow-emerald-950/40"
+            className="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-2 transition shadow-md shadow-emerald-950/40 cursor-pointer"
           >
             <QrCode className="w-4 h-4" /> Lihat QR Absensi
           </button>
         </div>
       </div>
+
+      {/* Sync Status Banner */}
+      {syncMsg && (
+        <div className="p-3.5 rounded-2xl bg-indigo-950/60 border border-indigo-500/30 text-indigo-200 text-xs flex items-center justify-between gap-3 shadow-lg animate-in fade-in">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{syncMsg}</span>
+          </div>
+          <button
+            onClick={() => setSyncMsg(null)}
+            className="text-xs text-slate-400 hover:text-white"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* 4 Primary Metric Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.js';
 
 interface BrandLogoProps {
@@ -25,9 +25,14 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
   }
 
   const [imageError, setImageError] = useState(false);
-  const activeLogo = logoUrl !== undefined ? logoUrl : authPublicInfo?.appLogo;
+  const rawLogo = logoUrl !== undefined ? logoUrl : authPublicInfo?.appLogo;
+  const activeLogo = rawLogo && rawLogo.trim() !== '' ? rawLogo.trim() : null;
   const appName = authPublicInfo?.appName || 'DIGITALMEERA ABSENSI';
   const subTitle = authPublicInfo?.subTitle || 'Sistem Absensi Digital Berbasis QR Code';
+
+  useEffect(() => {
+    setImageError(false);
+  }, [activeLogo]);
 
   const iconDimensions = {
     sm: 'w-8 h-8',
@@ -54,7 +59,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
     <div className={`flex items-center gap-3 ${className}`}>
       {/* Visual Logo Emblem or Custom Uploaded Logo */}
       {activeLogo && !imageError ? (
-        <div className={`relative flex items-center justify-center rounded-2xl overflow-hidden bg-slate-900 border border-slate-700/60 p-1 shadow-lg shrink-0 ${iconDimensions}`}>
+        <div className={`relative flex items-center justify-center rounded-2xl overflow-hidden bg-white/10 dark:bg-slate-900 border border-emerald-500/30 p-1 shadow-md shrink-0 ${iconDimensions}`}>
           <img
             src={activeLogo}
             alt={appName}

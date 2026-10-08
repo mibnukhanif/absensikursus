@@ -11,12 +11,15 @@ import {
   RefreshCw,
   FileSpreadsheet,
   MapPin,
-  ExternalLink
+  ExternalLink,
+  CheckCircle2
 } from 'lucide-react';
 
 export const AdminAbsensiPage: React.FC = () => {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncingSheets, setSyncingSheets] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [tanggal, setTanggal] = useState('');
   const [kelas, setKelas] = useState('');
@@ -39,6 +42,25 @@ export const AdminAbsensiPage: React.FC = () => {
       // ignore
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSyncSheets = async () => {
+    try {
+      setSyncingSheets(true);
+      setSyncMsg(null);
+      const res = await apiRequest('/api/admin/sheets/pull-all', { method: 'POST' });
+      if (res.success) {
+        setSyncMsg(res.message || 'Sinkronisasi data presensi dengan Google Spreadsheet berhasil!');
+        await fetchAttendance();
+      } else {
+        setSyncMsg(res.message || 'Gagal sinkronisasi data.');
+      }
+    } catch (err: any) {
+      setSyncMsg('Gagal terhubung ke spreadsheet: ' + err.message);
+    } finally {
+      setSyncingSheets(false);
+      setTimeout(() => setSyncMsg(null), 5000);
     }
   };
 
@@ -72,15 +94,40 @@ export const AdminAbsensiPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={handleSyncSheets}
+            disabled={syncingSheets}
+            className="px-3.5 py-2.5 rounded-2xl bg-indigo-600/80 hover:bg-indigo-600 text-white font-bold text-xs flex items-center gap-2 transition shadow-md shadow-indigo-950/40 disabled:opacity-50 cursor-pointer"
+            title="Tarik Data Presensi dari Google Spreadsheet"
+          >
+            <FileSpreadsheet className={`w-4 h-4 ${syncingSheets ? 'animate-bounce text-emerald-300' : ''}`} />
+            {syncingSheets ? 'Menyinkronkan...' : 'Tarik dari Spreadsheet'}
+          </button>
           <button
             onClick={handleExportCSV}
-            className="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-2 transition shadow-lg shadow-emerald-950/40"
+            className="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-2 transition shadow-lg shadow-emerald-950/40 cursor-pointer"
           >
             <Download className="w-4 h-4" /> Ekspor ke CSV / Excel
           </button>
         </div>
       </div>
+
+      {/* Sync Status Banner */}
+      {syncMsg && (
+        <div className="p-3.5 rounded-2xl bg-indigo-950/60 border border-indigo-500/30 text-indigo-200 text-xs flex items-center justify-between gap-3 shadow-lg animate-in fade-in">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{syncMsg}</span>
+          </div>
+          <button
+            onClick={() => setSyncMsg(null)}
+            className="text-xs text-slate-400 hover:text-white"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Filter Bar */}
       <div className="bg-slate-900 border border-slate-800 p-4 rounded-3xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">

@@ -5,10 +5,10 @@
       "email": "digitalmeera.com@gmail.com",
       "username": "admin",
       "name": "Administrator Utama",
-      "passwordHash": "$2b$10$MXa2bk6vjixer0JXozxz7um3PV03nD3ehd0uV5m/1mlZFnKf6JUEO",
+      "passwordHash": "$2b$10$3SmWN/3l0jlFnZ00scKjnudLd.EmTL5CkkbcpJie9tctlAgeazSpC",
       "role": "super_admin",
       "createdAt": "2026-10-08T00:00:00.000Z",
-      "updatedAt": "2026-10-08T00:00:00.000Z"
+      "updatedAt": "2026-10-08T07:37:20.307Z"
     }
   ],
   "murid": [
@@ -18,12 +18,12 @@
       "nama": "Ahmad Fauzi",
       "kelas": "XII IPA 1",
       "username": "1001",
-      "passwordHash": "$2b$10$2/3IgDo94S1R3guFtCJKC.q.CK/n3fAO/oM67LRCxvU/nfiKaIVsC",
-      "noHp": "081234567891",
+      "passwordHash": "$2b$10$Jk5kRv4mpwYcDjuJfqSSCu0.XUIii6WDuRiazES7rIyZZURJT9o16",
+      "noHp": "81234567891",
       "status": "aktif",
       "tanggalDaftar": "2026-10-08",
       "createdAt": "2026-10-08T00:00:00.000Z",
-      "updatedAt": "2026-10-08T00:00:00.000Z"
+      "updatedAt": "2026-10-08T07:37:19.910Z"
     },
     {
       "id": "murid-1002",
@@ -31,12 +31,38 @@
       "nama": "Siti Rahmawati",
       "kelas": "XII IPA 1",
       "username": "1002",
-      "passwordHash": "$2b$10$Pu.jr/fn5.2m.EWh65j2dODw.iVWy0RbzvOTPd9OuLKHn5Cb2gBzS",
-      "noHp": "081234567892",
+      "passwordHash": "$2b$10$uXGKItNw8OHGpFQwKCmwxOkpNdu9lHrpyd9lu37KSZyOPD58vYa92",
+      "noHp": "81234567892",
       "status": "aktif",
       "tanggalDaftar": "2026-10-08",
       "createdAt": "2026-10-08T00:00:00.000Z",
-      "updatedAt": "2026-10-08T00:00:00.000Z"
+      "updatedAt": "2026-10-08T07:37:20.008Z"
+    },
+    {
+      "id": "murid-1791441766153-k9gbs",
+      "nis": "1003",
+      "nama": "Khanif",
+      "kelas": "Sabtu Sore",
+      "username": "1003",
+      "passwordHash": "$2b$10$7/ja5y0dqWcWa/vlyY1Xc.DLI7A/IBS7XsMOHPx8fHNYS.hxFbgeG",
+      "noHp": "85155284564",
+      "status": "aktif",
+      "tanggalDaftar": "Thu Oct 08 2026 00:00:00 GMT+0700 (Western Indonesia Time)",
+      "createdAt": "2026-10-08T07:37:10.908Z",
+      "updatedAt": "2026-10-08T07:37:20.106Z"
+    },
+    {
+      "id": "murid-test-1",
+      "nis": "9999",
+      "nama": "Test Siswa",
+      "kelas": "X IPA",
+      "username": "9999",
+      "passwordHash": "$2b$10$6ocwGICqTW6gPiy2yc5zve9uDZBMzJJlycJ0BOOeRhbi4dXZpL912",
+      "noHp": "81234567",
+      "status": "aktif",
+      "tanggalDaftar": "Thu Oct 08 2026 00:00:00 GMT+0700 (Western Indonesia Time)",
+      "createdAt": "2026-10-08T07:37:11.011Z",
+      "updatedAt": "2026-10-08T07:37:20.209Z"
     }
   ],
   "attendance": [
@@ -105,9 +131,42 @@
     "googleSheetsScriptUrl": "https://script.google.com/macros/s/AKfycbybSkJPMQvRtFQFLhKyb76R1mxWPxM6N5kuhV4oGAhhQMuyQAogLtV8TJrRiCQbURQI/exec",
     "googleSheetsSecretToken": "",
     "googleSheetsSyncEnabled": true,
-    "updatedAt": "2026-10-08T04:45:00.000Z"
+    "updatedAt": "2026-10-08T07:37:54.288Z",
+    "appLogo": ""
   },
   "auditLogs": [
+    {
+      "id": "log-1791445074289-kgchu",
+      "actor": "Administrator Utama",
+      "role": "admin",
+      "action": "Update Pengaturan",
+      "details": "Memperbarui pengaturan sistem, shift presensi, dan lokasi koordinat.",
+      "timestamp": "2026-10-08T07:37:54.289Z"
+    },
+    {
+      "id": "log-1791445061195-6qmh4",
+      "actor": "Administrator Utama",
+      "role": "admin",
+      "action": "Update Pengaturan",
+      "details": "Memperbarui pengaturan sistem, shift presensi, dan lokasi koordinat.",
+      "timestamp": "2026-10-08T07:37:41.195Z"
+    },
+    {
+      "id": "log-1791445035561-5cazs",
+      "actor": "Administrator Utama",
+      "role": "admin",
+      "action": "Sinkronisasi Penuh Spreadsheet",
+      "details": "Sinkronisasi berhasil: 4 murid, 1 admin, 0 log presensi.",
+      "timestamp": "2026-10-08T07:37:15.561Z"
+    },
+    {
+      "id": "log-1791445025767-fodr1",
+      "actor": "Administrator Utama",
+      "role": "admin",
+      "action": "Login Admin",
+      "details": "Admin digitalmeera.com@gmail.com berhasil masuk ke dashboard.",
+      "timestamp": "2026-10-08T07:37:05.767Z"
+    },
     {
       "id": "log-1791437151702-xwrwn",
       "actor": "Administrator Utama",
