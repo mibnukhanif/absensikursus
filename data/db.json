@@ -1,0 +1,66 @@
+{
+  "admins": [
+    {
+      "id": "admin-1791432028175",
+      "email": "digitalmeera.com@gmail.com",
+      "username": "digitalmeera.com",
+      "name": "Administrator Utama",
+      "passwordHash": "$2b$10$dCwSq6KNlC0Pj9in.f4BPO6vbEwPgp6/QEfo//XHjgWgBOK6xo/5W",
+      "role": "super_admin",
+      "createdAt": "2026-10-08T04:00:28.175Z",
+      "updatedAt": "2026-10-08T04:00:28.175Z"
+    }
+  ],
+  "murid": [],
+  "attendance": [],
+  "qrCode": {
+    "id": "qr-primary-1",
+    "identifier": "DIGITALMEERA-ABSENSI-001",
+    "namaLokasi": "Pintu Masuk Utama Kampus Digitalmeera",
+    "status": "aktif",
+    "createdAt": "2026-10-08T02:44:15.789Z",
+    "updatedAt": "2026-10-08T02:44:15.789Z"
+  },
+  "settings": {
+    "appName": "DIGITALMEERA ABSENSI",
+    "subTitle": "Sistem Absensi Digital Berbasis QR Code",
+    "institutionName": "Lembaga Pendidikan Digitalmeera",
+    "institutionAddress": "Jl. Merdeka Digital No. 88, Indonesia",
+    "adminWhatsApp": "081234567890",
+    "adminEmail": "admin@digitalmeera.edu",
+    "jamMasuk": "07:30",
+    "jamPulang": "15:00",
+    "footerText": "© 2026 DIGITALMEERA. Hak Cipta Dilindungi.",
+    "googleSheetsId": "1Mv6cw3CrjCVW7o42lM87iN98D0i0p4ClaCCHrg9i1Ek",
+    "googleSheetsScriptUrl": "https://script.google.com/macros/s/AKfycbybSkJPMQvRtFQFLhKyb76R1mxWPxM6N5kuhV4oGAhhQMuyQAogLtV8TJrRiCQbURQI/exec",
+    "googleSheetsSecretToken": "",
+    "googleSheetsSyncEnabled": true,
+    "updatedAt": "2026-10-08T04:45:00.000Z"
+  },
+  "auditLogs": [
+    {
+      "id": "log-1791432153522-gybtr",
+      "actor": "Administrator Utama",
+      "role": "admin",
+      "action": "Login Admin",
+      "details": "Admin digitalmeera.com@gmail.com berhasil masuk ke dashboard.",
+      "timestamp": "2026-10-08T04:02:33.522Z"
+    },
+    {
+      "id": "log-1791432085727-jz896",
+      "actor": "Administrator Utama",
+      "role": "admin",
+      "action": "Login Admin",
+      "details": "Admin digitalmeera.com@gmail.com berhasil masuk ke dashboard.",
+      "timestamp": "2026-10-08T04:01:25.727Z"
+    },
+    {
+      "id": "log-1791432028175-8pt74",
+      "actor": "System Bootstrap",
+      "role": "system",
+      "action": "Bootstrap Admin",
+      "details": "Initial admin created from environment variables for digitalmeera.com@gmail.com",
+      "timestamp": "2026-10-08T04:00:28.175Z"
+    }
+  ]
+}

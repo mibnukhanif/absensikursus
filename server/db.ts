@@ -104,10 +104,10 @@ const DEFAULT_SETTINGS: SystemSettings = {
   jamMasuk: '07:30',
   jamPulang: '15:00',
   footerText: '© 2026 DIGITALMEERA. Hak Cipta Dilindungi.',
-  googleSheetsId: '',
-  googleSheetsScriptUrl: '',
-  googleSheetsSecretToken: 'DIGITALMEERA_SECRET_SHEET_KEY',
-  googleSheetsSyncEnabled: false,
+  googleSheetsId: '1Mv6cw3CrjCVW7o42lM87iN98D0i0p4ClaCCHrg9i1Ek',
+  googleSheetsScriptUrl: 'https://script.google.com/macros/s/AKfycbybSkJPMQvRtFQFLhKyb76R1mxWPxM6N5kuhV4oGAhhQMuyQAogLtV8TJrRiCQbURQI/exec',
+  googleSheetsSecretToken: '',
+  googleSheetsSyncEnabled: true,
   updatedAt: new Date().toISOString()
 };
 

@@ -3,57 +3,64 @@
  * DIGITALMEERA ABSENSI - GOOGLE APPS SCRIPT WEBHOOK BRIDGE (Code.gs)
  * ==============================================================================
  * Script ini dipasang pada Google Spreadsheet untuk menerima sinkronisasi data
- * absensi, data murid, admin, dan pengaturan secara otomatis dari web app di Vercel.
+ * absensi murid, pendaftaran murid, admin, dan pengaturan sistem secara real-time.
  *
- * CARA PEMASANGAN:
- * 1. Buka Google Spreadsheet baru di browser (sheets.new).
- * 2. Klik menu "Extensions" (Ekstensi) > "Apps Script".
- * 3. Hapus kode bawaan (myFunction) dan paste seluruh isi file ini ke "Code.gs".
- * 4. (Opsional) Ubah API_SECRET_TOKEN di bawah ini dengan token rahasia pilihan Anda.
- * 5. Jalankan fungsi "initSheets()" sekali melalui tombol Run di atas untuk membuat tab otomatis.
- * 6. Klik tombol biru "Deploy" (Terapkan) > "New deployment" (Penerapan baru).
- * 7. Pilih tipe: "Web app" (Aplikasi web).
- * 8. Konfigurasi:
- *    - Description: "Digitalmeera Absensi Webhook v1"
- *    - Execute as: "Me" (Saya / email Anda)
- *    - Who has access: "Anyone" (Siapa saja / Anonim) --> PENTING agar Vercel bisa mengirim data!
- * 9. Klik "Deploy", beri izin akses Google jika diminta, lalu salin "Web App URL"
- *    (Contoh: https://script.google.com/macros/s/AKfycbx.../exec).
- * 10. Masukkan Web App URL tersebut ke menu Pengaturan di Dashboard Admin Digitalmeera.
+ * ID SPREADSHEET ANDA: 1Mv6cw3CrjCVW7o42lM87iN98D0i0p4ClaCCHrg9i1Ek
  * ==============================================================================
  */
 
-// Ganti token ini dengan string rahasia yang sama dengan yang diisi di Pengaturan Admin (opsional jika dikosongkan)
-var API_SECRET_TOKEN = "DIGITALMEERA_SECRET_SHEET_KEY";
+// ID Spreadsheet resmi Digitalmeera
+var SPREADSHEET_ID = "1Mv6cw3CrjCVW7o42lM87iN98D0i0p4ClaCCHrg9i1Ek";
+
+// Secret token (Dikosongkan agar tidak ada kendala token mismatch saat pengiriman data dari web)
+var API_SECRET_TOKEN = "";
+
+/**
+ * Mendapatkan referensi Spreadsheet (Mendukung Standalone Script maupun Container-Bound)
+ */
+function getSpreadsheet(payload) {
+  var id = (payload && payload.sheetId) || SPREADSHEET_ID;
+  if (id && id.trim() !== "") {
+    try {
+      return SpreadsheetApp.openById(id.trim());
+    } catch (e) {
+      Logger.log("openById error: " + e);
+    }
+  }
+  try {
+    return SpreadsheetApp.getActiveSpreadsheet();
+  } catch (e) {
+    throw new Error("Tidak dapat membuka spreadsheet. Pastikan SPREADSHEET_ID benar: " + e);
+  }
+}
 
 /**
  * Inisialisasi awal struktur tabel & header Google Spreadsheet
- * Jalankan fungsi ini sekali dari editor Apps Script untuk memformat sheet secara otomatis.
+ * Jalankan fungsi ini sekali melalui menu "Run" di Apps Script.
  */
 function initSheets() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = getSpreadsheet();
   
-  // Format Header Sheets
   var sheetsDef = [
     {
       name: "ABSENSI",
       headers: ["ID_ABSENSI", "ID_MURID", "NIS", "NAMA", "KELAS", "TANGGAL", "JAM", "STATUS", "QR_ID", "TIMESTAMP"],
-      color: "#047857" // Emerald header
+      color: "#047857" // Emerald
     },
     {
       name: "MURID",
       headers: ["ID_MURID", "NIS", "NAMA", "KELAS", "AUTH_ID", "NO_HP", "STATUS", "TANGGAL_DAFTAR"],
-      color: "#1d4ed8" // Blue header
+      color: "#1d4ed8" // Blue
     },
     {
       name: "ADMIN",
       headers: ["ID_ADMIN", "AUTH_ID", "NAMA", "ROLE", "STATUS"],
-      color: "#4338ca" // Indigo header
+      color: "#4338ca" // Indigo
     },
     {
       name: "SETTINGS",
       headers: ["KEY", "VALUE"],
-      color: "#374151" // Gray header
+      color: "#374151" // Gray
     }
   ];
 
@@ -63,7 +70,7 @@ function initSheets() {
       sheet = ss.insertSheet(item.name);
     }
     
-    // Periksa apakah baris header sudah ada
+    // Pasang header jika sheet masih kosong
     if (sheet.getLastRow() === 0) {
       sheet.appendRow(item.headers);
       var headerRange = sheet.getRange(1, 1, 1, item.headers.length);
@@ -77,25 +84,26 @@ function initSheets() {
   // Hapus Sheet1 default jika kosong
   var defaultSheet = ss.getSheetByName("Sheet1");
   if (defaultSheet && ss.getSheets().length > 1) {
-    try { ss.deleteSheet(defaultSheet); } catch(e) {}
+    try { ss.deleteSheet(defaultSheet); } catch (e) {}
   }
 
   Logger.log("Inisialisasi tabel Digitalmeera Absensi selesai!");
 }
 
 /**
- * Handle GET Request (Untuk tes koneksi dari browser atau webhook health check)
+ * Handle GET Request (Health Check / Test koneksi dari browser)
  */
 function doGet(e) {
-  return ContentService.createTextOutput(JSON.stringify({
+  return responseJSON({
     success: true,
     message: "Digitalmeera Absensi Google Apps Script Webhook is Active & Ready!",
+    spreadsheetId: SPREADSHEET_ID,
     timestamp: new Date().toISOString()
-  })).setMimeType(ContentService.MimeType.JSON);
+  });
 }
 
 /**
- * Handle POST Request (Menerima pengiriman data dari server Vercel)
+ * Handle POST Request (Menerima data dari web aplikasi di Vercel / server)
  */
 function doPost(e) {
   try {
@@ -105,7 +113,7 @@ function doPost(e) {
 
     var payload = JSON.parse(e.postData.contents);
 
-    // 1. Validasi Token Keamanan jika API_SECRET_TOKEN dikonfigurasi
+    // Validasi token keamanan hanya jika API_SECRET_TOKEN diisi khusus
     if (API_SECRET_TOKEN && API_SECRET_TOKEN.trim() !== "") {
       var clientToken = payload.token || "";
       if (clientToken !== API_SECRET_TOKEN) {
@@ -115,22 +123,29 @@ function doPost(e) {
 
     var action = payload.action;
     var data = payload.data;
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getSpreadsheet(payload);
 
-    // 2. Routing Aksi
     switch (action) {
       case "PING":
         return responseJSON({
           success: true,
           message: "Koneksi ke Google Spreadsheet berhasil terhubung!",
-          sheetName: ss.getName()
+          sheetName: ss.getName(),
+          spreadsheetId: ss.getId()
         });
 
       case "RECORD_ATTENDANCE":
         return handleRecordAttendance(ss, data);
 
+      case "ADD_MURID":
+      case "UPDATE_MURID":
+        return handleSaveSingleMurid(ss, data);
+
       case "SYNC_MURID":
         return handleSyncMurid(ss, data);
+
+      case "ADD_ADMIN":
+        return handleAddAdmin(ss, data);
 
       case "SYNC_ALL":
         return handleSyncAll(ss, data);
@@ -142,6 +157,7 @@ function doPost(e) {
         return responseJSON({ success: false, message: "Aksi tidak dikenali: " + action });
     }
   } catch (err) {
+    Logger.log("doPost Error: " + err.toString());
     return responseJSON({
       success: false,
       message: "Terjadi kesalahan server script: " + err.toString()
@@ -150,7 +166,7 @@ function doPost(e) {
 }
 
 /**
- * Catat satu baris absensi baru ke sheet "ABSENSI"
+ * Catat baris presensi baru ke tab "ABSENSI"
  */
 function handleRecordAttendance(ss, item) {
   if (!item) return responseJSON({ success: false, message: "Data absensi kosong." });
@@ -180,7 +196,54 @@ function handleRecordAttendance(ss, item) {
 }
 
 /**
- * Sinkronisasi seluruh murid ke sheet "MURID"
+ * Tambah / update satu murid ke tab "MURID"
+ */
+function handleSaveSingleMurid(ss, m) {
+  if (!m) return responseJSON({ success: false, message: "Data murid kosong." });
+
+  var sheet = getOrCreateSheet(ss, "MURID", [
+    "ID_MURID", "NIS", "NAMA", "KELAS", "AUTH_ID", "NO_HP", "STATUS", "TANGGAL_DAFTAR"
+  ]);
+
+  var lastRow = sheet.getLastRow();
+  var rowIndex = -1;
+
+  // Cek apakah NIS atau ID Murid sudah ada di sheet
+  if (lastRow > 1) {
+    var data = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+    for (var i = 0; i < data.length; i++) {
+      if (String(data[i][0]) === String(m.id) || String(data[i][1]) === String(m.nis)) {
+        rowIndex = i + 2;
+        break;
+      }
+    }
+  }
+
+  var rowValues = [
+    m.id || "",
+    m.nis || "",
+    m.nama || "",
+    m.kelas || "",
+    m.username || m.nis || "",
+    m.noHp || "",
+    m.status || "aktif",
+    m.tanggalDaftar || new Date().toISOString().split("T")[0]
+  ];
+
+  if (rowIndex > 0) {
+    sheet.getRange(rowIndex, 1, 1, rowValues.length).setValues([rowValues]);
+  } else {
+    sheet.appendRow(rowValues);
+  }
+
+  return responseJSON({
+    success: true,
+    message: "Data murid " + m.nama + " berhasil disimpan ke Google Sheets."
+  });
+}
+
+/**
+ * Sinkronisasi seluruh daftar murid ke tab "MURID"
  */
 function handleSyncMurid(ss, muridList) {
   if (!muridList || !Array.isArray(muridList)) {
@@ -191,7 +254,6 @@ function handleSyncMurid(ss, muridList) {
     "ID_MURID", "NIS", "NAMA", "KELAS", "AUTH_ID", "NO_HP", "STATUS", "TANGGAL_DAFTAR"
   ]);
 
-  // Bersihkan data lama selain header baris 1
   if (sheet.getLastRow() > 1) {
     sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).clearContent();
   }
@@ -215,12 +277,36 @@ function handleSyncMurid(ss, muridList) {
 
   return responseJSON({
     success: true,
-    message: "Sinkronisasi " + rows.length + " murid berhasil disimpan."
+    message: "Sinkronisasi " + rows.length + " murid berhasil disimpan ke spreadsheet."
   });
 }
 
 /**
- * Full Sync (Semua Murid, Riwayat Absensi, Admin, dan Settings)
+ * Catat akun Admin ke tab "ADMIN"
+ */
+function handleAddAdmin(ss, adminUser) {
+  if (!adminUser) return responseJSON({ success: false, message: "Data admin kosong." });
+
+  var sheet = getOrCreateSheet(ss, "ADMIN", [
+    "ID_ADMIN", "AUTH_ID", "NAMA", "ROLE", "STATUS"
+  ]);
+
+  sheet.appendRow([
+    adminUser.id || "",
+    adminUser.email || adminUser.username || "",
+    adminUser.name || "",
+    adminUser.role || "admin",
+    "aktif"
+  ]);
+
+  return responseJSON({
+    success: true,
+    message: "Data admin berhasil disimpan ke Google Sheets."
+  });
+}
+
+/**
+ * Full Sync: Salin seluruh data murid, riwayat absensi, admin, dan settings
  */
 function handleSyncAll(ss, fullData) {
   if (!fullData) return responseJSON({ success: false, message: "Data kosong." });
@@ -230,7 +316,7 @@ function handleSyncAll(ss, fullData) {
     handleSyncMurid(ss, fullData.murid);
   }
 
-  // 2. Sync Attendance
+  // 2. Sync Absensi
   if (fullData.attendance && Array.isArray(fullData.attendance)) {
     var sheetAtt = getOrCreateSheet(ss, "ABSENSI", [
       "ID_ABSENSI", "ID_MURID", "NIS", "NAMA", "KELAS", "TANGGAL", "JAM", "STATUS", "QR_ID", "TIMESTAMP"
@@ -260,7 +346,7 @@ function handleSyncAll(ss, fullData) {
     }
   }
 
-  // 3. Sync Admin (Tanpa Password!)
+  // 3. Sync Admin (Tanpa password untuk keamanan)
   if (fullData.admins && Array.isArray(fullData.admins)) {
     var sheetAdmin = getOrCreateSheet(ss, "ADMIN", [
       "ID_ADMIN", "AUTH_ID", "NAMA", "ROLE", "STATUS"
@@ -297,7 +383,7 @@ function handleSyncAll(ss, fullData) {
 }
 
 /**
- * Update key-value ke sheet "SETTINGS"
+ * Simpan pengaturan sistem ke sheet "SETTINGS"
  */
 function handleUpdateSettings(ss, settingsObj) {
   var sheet = getOrCreateSheet(ss, "SETTINGS", ["KEY", "VALUE"]);
@@ -309,7 +395,6 @@ function handleUpdateSettings(ss, settingsObj) {
   var rows = [];
   for (var key in settingsObj) {
     if (settingsObj.hasOwnProperty(key)) {
-      // Lewati secret token atau password
       if (key.toLowerCase().includes("secret") || key.toLowerCase().includes("password")) continue;
       rows.push([key, String(settingsObj[key])]);
     }
@@ -319,12 +404,9 @@ function handleUpdateSettings(ss, settingsObj) {
     sheet.getRange(2, 1, rows.length, 2).setValues(rows);
   }
 
-  return responseJSON({ success: true, message: "Pengaturan berhasil diperbarui di spreadsheet." });
+  return responseJSON({ success: true, message: "Pengaturan berhasil disimpan di spreadsheet." });
 }
 
-/**
- * Helper untuk mendapatkan atau membuat sheet dengan header
- */
 function getOrCreateSheet(ss, sheetName, defaultHeaders) {
   var sheet = ss.getSheetByName(sheetName);
   if (!sheet) {
@@ -339,9 +421,6 @@ function getOrCreateSheet(ss, sheetName, defaultHeaders) {
   return sheet;
 }
 
-/**
- * Helper JSON Response
- */
 function responseJSON(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);

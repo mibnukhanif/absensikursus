@@ -20,6 +20,9 @@ import {
 } from './auth.js';
 import {
   asyncMirrorAttendanceToSheets,
+  asyncSyncMuridToSheets,
+  asyncSyncAdminToSheets,
+  asyncSyncSettingsToSheets,
   sendToGoogleSheets
 } from './sheets.js';
 
@@ -90,6 +93,7 @@ router.post('/auth/setup-initial-admin', async (req: Request, res: Response) => 
     };
 
     db.addAdmin(newAdmin);
+    asyncSyncAdminToSheets(newAdmin);
     db.logAction(newAdmin.name, 'admin', 'Setup Awal Admin', `Akun Super Admin ${newAdmin.email} berhasil diinisialisasi.`);
 
     const token = generateToken({
@@ -654,6 +658,7 @@ router.post('/admin/murid', authenticateToken, requireAdmin, async (req: Authent
     };
 
     db.addMurid(newMurid);
+    asyncSyncMuridToSheets(newMurid);
     db.logAction(req.user!.name, 'admin', 'Tambah Murid', `Menambahkan murid ${newMurid.nama} (${newMurid.nis})`);
 
     res.status(201).json({
@@ -713,6 +718,7 @@ router.put('/admin/murid/:id', authenticateToken, requireAdmin, async (req: Auth
     }
 
     const updated = db.updateMurid(id, updates);
+    if (updated) asyncSyncMuridToSheets(updated);
     db.logAction(req.user!.name, 'admin', 'Edit Murid', `Memperbarui data murid ${existing.nama} (${existing.nis})`);
 
     res.json({
@@ -734,6 +740,7 @@ router.delete('/admin/murid/:id', authenticateToken, requireAdmin, (req: Authent
   }
 
   db.deleteMurid(id, true);
+  asyncSyncMuridToSheets(db.getMuridList());
   db.logAction(req.user!.name, 'admin', 'Hapus Murid', `Menonaktifkan/menghapus murid ${murid.nama} (${murid.nis})`);
 
   res.json({
@@ -890,6 +897,7 @@ router.put('/admin/settings', authenticateToken, requireAdmin, (req: Authenticat
   if (googleSheetsSyncEnabled !== undefined) updates.googleSheetsSyncEnabled = !!googleSheetsSyncEnabled;
 
   const updated = db.updateSettings(updates);
+  asyncSyncSettingsToSheets(updated);
   db.logAction(req.user!.name, 'admin', 'Update Pengaturan', 'Memperbarui pengaturan sistem dan lembaga.');
 
   res.json({

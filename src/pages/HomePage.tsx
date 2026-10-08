@@ -1,20 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.js';
 import { BrandLogo } from '../components/BrandLogo.js';
-import { QrCode, Shield, Clock, Users, ArrowRight, MessageSquare, AlertCircle, Sparkles, CheckCircle2 } from 'lucide-react';
+import { QrCode, Shield, Clock, Users, ArrowRight, MessageSquare, Sparkles, CheckCircle2 } from 'lucide-react';
 
 interface HomePageProps {
   onNavigate: (route: string) => void;
 }
 
 export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
-  const { publicInfo, checkSetupStatus } = useAuth();
-  const [hasAdmin, setHasAdmin] = useState<boolean>(true);
+  const { publicInfo } = useAuth();
   const [currentTime, setCurrentTime] = useState<string>('');
   const [currentDate, setCurrentDate] = useState<string>('');
 
   useEffect(() => {
-    checkSetupStatus().then((exists) => setHasAdmin(exists));
 
     const updateTime = () => {
       const now = new Date();
@@ -56,25 +54,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
 
       {/* Main Hero Container */}
       <main className="max-w-4xl w-full mx-auto px-6 py-8 flex flex-col items-center text-center">
-        {/* Setup Banner if no admin exists yet */}
-        {!hasAdmin && (
-          <div className="mb-8 w-full max-w-xl p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 flex items-start gap-3 text-left">
-            <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <h4 className="font-bold text-sm text-amber-300">Inisialisasi Sistem Diperlukan</h4>
-              <p className="text-xs text-amber-200/80 mt-0.5">
-                Belum ada akun Administrator terdaftar di database. Silakan inisialisasi akun Super Admin pertama secara aman.
-              </p>
-              <button
-                onClick={() => onNavigate('/setup')}
-                className="mt-2.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl transition flex items-center gap-1.5"
-              >
-                Inisialisasi Admin Sekarang <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Hero Title & Subtitle */}
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-semibold mb-6">
           <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
