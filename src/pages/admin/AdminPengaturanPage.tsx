@@ -57,6 +57,7 @@ export const AdminPengaturanPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // New & Editing Shift state
   const [newShift, setNewShift] = useState({
@@ -247,6 +248,7 @@ export const AdminPengaturanPage: React.FC = () => {
     e.preventDefault();
     setSaving(true);
     setSavedSuccess(false);
+    setSaveError(null);
 
     const res = await apiRequest('/api/admin/settings', {
       method: 'PUT',
@@ -259,8 +261,10 @@ export const AdminPengaturanPage: React.FC = () => {
       setSettings(res.data);
       setSavedSuccess(true);
       await fetchPublicInfo();
-      setTimeout(() => setSavedSuccess(false), 3000);
+      setTimeout(() => setSavedSuccess(false), 4000);
       fetchData();
+    } else {
+      setSaveError(res.message || 'Gagal menyimpan pengaturan ke database.');
     }
   };
 
@@ -337,6 +341,16 @@ export const AdminPengaturanPage: React.FC = () => {
         <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
           <CheckCircle2 className="w-5 h-5 shrink-0" />
           <span>Pengaturan sistem berhasil disimpan dan diperbarui di database.</span>
+        </div>
+      )}
+
+      {saveError && (
+        <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 shrink-0" />
+            <span>{saveError}</span>
+          </div>
+          <button onClick={() => setSaveError(null)} className="text-rose-400 hover:text-white">✕</button>
         </div>
       )}
 

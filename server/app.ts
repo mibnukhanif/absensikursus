@@ -30,7 +30,8 @@ import {
   verifyAdminWithSheets,
   verifyMuridWithSheets,
   pullUsersFromSheets,
-  pullAllDataFromSheets
+  pullAllDataFromSheets,
+  syncMuridDirectToSheets
 } from './sheets.js';
 
 dotenv.config();
@@ -945,12 +946,32 @@ router.post('/admin/murid', authenticateToken, requireAdmin, async (req: Authent
     };
 
     db.addMurid(newMurid);
-    asyncSyncMuridToSheets(newMurid, password);
     db.logAction(req.user!.name, 'admin', 'Tambah Murid', `Menambahkan murid ${newMurid.nama} (${newMurid.nis})`);
+
+    // Sinkronkan langsung ke Google Spreadsheet
+    let sheetsSynced = false;
+    let sheetsMessage = '';
+    try {
+      const sheetsRes = await syncMuridDirectToSheets(newMurid, password);
+      sheetsSynced = sheetsRes.success;
+      sheetsMessage = sheetsRes.message;
+      if (sheetsSynced) {
+        console.log(`[SHEETS SYNC SUCCESS] Murid ${newMurid.nama} (${newMurid.nis}) tersimpan di Google Spreadsheet.`);
+      } else {
+        console.warn(`[SHEETS SYNC WARNING] ${sheetsRes.message}`);
+      }
+    } catch (sErr: any) {
+      sheetsMessage = sErr.message;
+      console.error('[SHEETS SYNC ERROR]', sErr);
+    }
 
     res.status(201).json({
       success: true,
-      message: 'Data murid berhasil ditambahkan.',
+      message: sheetsSynced
+        ? `Data murid ${newMurid.nama} berhasil ditambahkan dan langsung tersimpan ke Google Spreadsheet!`
+        : `Data murid ${newMurid.nama} berhasil ditambahkan ke database (Catatan Spreadsheet: ${sheetsMessage}).`,
+      sheetsSynced,
+      sheetsMessage,
       data: {
         id: newMurid.id,
         nis: newMurid.nis,
@@ -1005,12 +1026,27 @@ router.put('/admin/murid/:id', authenticateToken, requireAdmin, async (req: Auth
     }
 
     const updated = db.updateMurid(id, updates);
-    if (updated) asyncSyncMuridToSheets(updated, password || undefined);
     db.logAction(req.user!.name, 'admin', 'Edit Murid', `Memperbarui data murid ${existing.nama} (${existing.nis})`);
+
+    // Sinkronkan ke spreadsheet
+    let sheetsSynced = false;
+    let sheetsMessage = '';
+    if (updated) {
+      try {
+        const sRes = await syncMuridDirectToSheets(updated, password || undefined);
+        sheetsSynced = sRes.success;
+        sheetsMessage = sRes.message;
+      } catch (err: any) {
+        sheetsMessage = err.message;
+      }
+    }
 
     res.json({
       success: true,
-      message: 'Data murid berhasil diperbarui.',
+      message: sheetsSynced
+        ? `Data murid ${existing.nama} berhasil diperbarui di database dan Google Spreadsheet!`
+        : `Data murid ${existing.nama} berhasil diperbarui di database.`,
+      sheetsSynced,
       data: updated
     });
   } catch (err: any) {
@@ -1052,12 +1088,19 @@ router.post('/admin/murid/:id/reset-password', authenticateToken, requireAdmin, 
     }
 
     const passwordHash = await hashPassword(newPassword);
-    db.updateMurid(id, { passwordHash });
+    const updatedMurid = db.updateMurid(id, { passwordHash });
     db.logAction(req.user!.name, 'admin', 'Reset Password', `Mereset password untuk murid ${murid.nama} (${murid.nis})`);
+
+    // Sinkronkan pembaruan password langsung ke Google Spreadsheet
+    if (updatedMurid) {
+      syncMuridDirectToSheets(updatedMurid, newPassword).catch((sErr) => {
+        console.warn('[RESET PASSWORD SHEETS WARNING]', sErr.message);
+      });
+    }
 
     res.json({
       success: true,
-      message: `Password murid ${murid.nama} berhasil direset.`
+      message: `Password murid ${murid.nama} berhasil direset dan disinkronkan ke Google Spreadsheet.`
     });
   } catch (err: any) {
     res.status(500).json({ success: false, message: 'Gagal mereset password murid.' });

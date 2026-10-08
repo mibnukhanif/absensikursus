@@ -129,6 +129,8 @@ export const AdminMuridPage: React.FC = () => {
 
     if (res.success) {
       setIsAddModalOpen(false);
+      setSyncMsg(res.message || 'Data murid berhasil ditambahkan dan langsung tersimpan ke Google Spreadsheet!');
+      setTimeout(() => setSyncMsg(null), 6000);
       fetchMurid();
     } else {
       setFormError(res.message || 'Gagal menambahkan murid.');
@@ -166,6 +168,8 @@ export const AdminMuridPage: React.FC = () => {
 
     if (res.success) {
       setIsEditModalOpen(false);
+      setSyncMsg(res.message || 'Data murid berhasil diperbarui dan disinkronkan ke Spreadsheet!');
+      setTimeout(() => setSyncMsg(null), 6000);
       fetchMurid();
     } else {
       setFormError(res.message || 'Gagal memperbarui data murid.');
@@ -200,7 +204,8 @@ export const AdminMuridPage: React.FC = () => {
 
     if (res.success) {
       setIsResetModalOpen(false);
-      alert(`Password untuk ${selectedMurid.nama} berhasil direset.`);
+      setSyncMsg(`Password untuk ${selectedMurid.nama} berhasil direset.`);
+      setTimeout(() => setSyncMsg(null), 5000);
     } else {
       setFormError(res.message || 'Gagal mereset password.');
     }
@@ -223,6 +228,8 @@ export const AdminMuridPage: React.FC = () => {
     setIsDeleteModalOpen(false);
 
     if (res.success) {
+      setSyncMsg(res.message || `Data murid ${selectedMurid.nama} berhasil dihapus/dinonaktifkan.`);
+      setTimeout(() => setSyncMsg(null), 5000);
       fetchMurid();
     }
   };
@@ -514,9 +521,19 @@ export const AdminMuridPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl disabled:opacity-50"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl disabled:opacity-50 flex items-center gap-2 cursor-pointer shadow-md shadow-emerald-950/40"
                 >
-                  {submitting ? 'Menyimpan...' : 'Simpan Murid'}
+                  {submitting ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Menyimpan ke Spreadsheet...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileSpreadsheet className="w-3.5 h-3.5" />
+                      <span>Simpan & Masukkan ke Spreadsheet</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -612,9 +629,19 @@ export const AdminMuridPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl disabled:opacity-50"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl disabled:opacity-50 flex items-center gap-2 cursor-pointer shadow-md shadow-emerald-950/40"
                 >
-                  {submitting ? 'Menyimpan...' : 'Perbarui'}
+                  {submitting ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Memperbarui ke Spreadsheet...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileSpreadsheet className="w-3.5 h-3.5" />
+                      <span>Perbarui di Spreadsheet</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

@@ -5,10 +5,10 @@
       "email": "digitalmeera.com@gmail.com",
       "username": "admin",
       "name": "Administrator Utama",
-      "passwordHash": "$2b$10$3SmWN/3l0jlFnZ00scKjnudLd.EmTL5CkkbcpJie9tctlAgeazSpC",
+      "passwordHash": "$2b$10$daochsKzlmeAy8OPK1.1Mux1upoNi/Nt86BsY9LN6IrlEBS0054Sm",
       "role": "super_admin",
       "createdAt": "2026-10-08T00:00:00.000Z",
-      "updatedAt": "2026-10-08T07:37:20.307Z"
+      "updatedAt": "2026-10-08T08:35:03.668Z"
     }
   ],
   "murid": [
@@ -18,12 +18,12 @@
       "nama": "Ahmad Fauzi",
       "kelas": "XII IPA 1",
       "username": "1001",
-      "passwordHash": "$2b$10$Jk5kRv4mpwYcDjuJfqSSCu0.XUIii6WDuRiazES7rIyZZURJT9o16",
+      "passwordHash": "$2b$10$dwu/sbWaa0S9AdgQYIrCdOtzOx7AQ5JGMg1LFNRywoD/OJFHz2MMG",
       "noHp": "81234567891",
       "status": "aktif",
       "tanggalDaftar": "2026-10-08",
       "createdAt": "2026-10-08T00:00:00.000Z",
-      "updatedAt": "2026-10-08T07:37:19.910Z"
+      "updatedAt": "2026-10-08T08:35:03.049Z"
     },
     {
       "id": "murid-1002",
@@ -31,12 +31,12 @@
       "nama": "Siti Rahmawati",
       "kelas": "XII IPA 1",
       "username": "1002",
-      "passwordHash": "$2b$10$uXGKItNw8OHGpFQwKCmwxOkpNdu9lHrpyd9lu37KSZyOPD58vYa92",
+      "passwordHash": "$2b$10$/EONahS9BVR2mbMk1jm.DuWw4FCMBFpak8ArdRH4.ZT7LPv/qBCLa",
       "noHp": "81234567892",
       "status": "aktif",
       "tanggalDaftar": "2026-10-08",
       "createdAt": "2026-10-08T00:00:00.000Z",
-      "updatedAt": "2026-10-08T07:37:20.008Z"
+      "updatedAt": "2026-10-08T08:35:03.153Z"
     },
     {
       "id": "murid-1791441766153-k9gbs",
@@ -44,12 +44,12 @@
       "nama": "Khanif",
       "kelas": "Sabtu Sore",
       "username": "1003",
-      "passwordHash": "$2b$10$7/ja5y0dqWcWa/vlyY1Xc.DLI7A/IBS7XsMOHPx8fHNYS.hxFbgeG",
+      "passwordHash": "$2b$10$qkl7GrxKXfSr//cKLGNcfeQ8yromRrtoqdfJ9FccDRFfbnAs2VPk6",
       "noHp": "85155284564",
       "status": "aktif",
       "tanggalDaftar": "Thu Oct 08 2026 00:00:00 GMT+0700 (Western Indonesia Time)",
       "createdAt": "2026-10-08T07:37:10.908Z",
-      "updatedAt": "2026-10-08T07:37:20.106Z"
+      "updatedAt": "2026-10-08T08:35:03.257Z"
     },
     {
       "id": "murid-test-1",
@@ -57,12 +57,38 @@
       "nama": "Test Siswa",
       "kelas": "X IPA",
       "username": "9999",
-      "passwordHash": "$2b$10$6ocwGICqTW6gPiy2yc5zve9uDZBMzJJlycJ0BOOeRhbi4dXZpL912",
+      "passwordHash": "$2b$10$xLDp2ilGiVqtgNGC06U.COFVssp6TTk9s/xIFZrDQn5KocHc15DoC",
       "noHp": "81234567",
       "status": "aktif",
       "tanggalDaftar": "Thu Oct 08 2026 00:00:00 GMT+0700 (Western Indonesia Time)",
       "createdAt": "2026-10-08T07:37:11.011Z",
-      "updatedAt": "2026-10-08T07:37:20.209Z"
+      "updatedAt": "2026-10-08T08:35:03.362Z"
+    },
+    {
+      "id": "murid-1791447255400",
+      "nis": "8888",
+      "nama": "Budi Test Murid",
+      "kelas": "XI IPA 2",
+      "username": "8888",
+      "passwordHash": "$2b$10$YErWN4hz3vdU6ID62CQmae1NDVbOTUNyKfCkpewoHOaP4sEWzRlpO",
+      "noHp": "81234567888",
+      "status": "aktif",
+      "tanggalDaftar": "Thu Oct 08 2026 00:00:00 GMT+0700 (Western Indonesia Time)",
+      "createdAt": "2026-10-08T08:22:14.372Z",
+      "updatedAt": "2026-10-08T08:35:03.465Z"
+    },
+    {
+      "id": "murid-1791447753334-oodqe",
+      "nis": "202601",
+      "nama": "Rian Pratama",
+      "kelas": "XII TKJ 1",
+      "username": "202601",
+      "passwordHash": "$2b$10$oD.ZVbcV4fRvez84WlySDel03dSS.fSDfSYL2yWD9v0Sgmk7qvp2W",
+      "noHp": "81298765432",
+      "status": "aktif",
+      "tanggalDaftar": "2026-10-08",
+      "createdAt": "2026-10-08T08:22:33.335Z",
+      "updatedAt": "2026-10-08T08:35:03.566Z"
     }
   ],
   "attendance": [
@@ -85,6 +111,78 @@
       "qrId": "DIGITALMEERA-ABSENSI-001",
       "timestamp": 1791443370378,
       "createdAt": "2026-10-08T07:09:30.387Z"
+    },
+    {
+      "id": "att-1791437882993-bl1iqk",
+      "muridId": "murid-1001",
+      "nis": "1001",
+      "nama": "Ahmad Fauzi",
+      "kelas": "XII IPA 1",
+      "tanggal": "Thu Oct 08 2026 00:00:00 GMT+0700 (Western Indonesia Time)",
+      "jam": "Sat Dec 30 1899 12:38:02 GMT+0707 (Western Indonesia Time)",
+      "shift": "Terlambat",
+      "status": "DIGITALMEERA-ABSENSI-001",
+      "latitude": null,
+      "longitude": null,
+      "jarakMeter": null,
+      "mapsUrl": "",
+      "qrId": "DIGITALMEERA-ABSENSI-001",
+      "timestamp": 1791447732838,
+      "createdAt": "2026-10-08T08:22:12.838Z"
+    },
+    {
+      "id": "att-1791437917644-bt7iss",
+      "muridId": "murid-1002",
+      "nis": "1002",
+      "nama": "Siti Rahmawati",
+      "kelas": "XII IPA 1",
+      "tanggal": "Thu Oct 08 2026 00:00:00 GMT+0700 (Western Indonesia Time)",
+      "jam": "Sat Dec 30 1899 12:38:37 GMT+0707 (Western Indonesia Time)",
+      "shift": "Terlambat",
+      "status": "DIGITALMEERA-ABSENSI-001",
+      "latitude": null,
+      "longitude": null,
+      "jarakMeter": null,
+      "mapsUrl": "",
+      "qrId": "DIGITALMEERA-ABSENSI-001",
+      "timestamp": 1791447732838,
+      "createdAt": "2026-10-08T08:22:12.838Z"
+    },
+    {
+      "id": "att-1791442100153-vbg1l2",
+      "muridId": "murid-1791441766153-k9gbs",
+      "nis": "1003",
+      "nama": "Khanif",
+      "kelas": "Sabtu Sore",
+      "tanggal": "Thu Oct 08 2026 00:00:00 GMT+0700 (Western Indonesia Time)",
+      "jam": "Sat Dec 30 1899 13:48:20 GMT+0707 (Western Indonesia Time)",
+      "shift": "Shift Pagi / Reguler",
+      "status": "Terlambat",
+      "latitude": null,
+      "longitude": null,
+      "jarakMeter": null,
+      "mapsUrl": "",
+      "qrId": "DIGITALMEERA-ABSENSI-001",
+      "timestamp": 1791442100152,
+      "createdAt": "2026-10-08T06:48:20.152Z"
+    },
+    {
+      "id": "att-1791442193141-euefdh",
+      "muridId": "murid-1001",
+      "nis": "1001",
+      "nama": "Ahmad Fauzi",
+      "kelas": "XII IPA 1",
+      "tanggal": "Thu Oct 08 2026 00:00:00 GMT+0700 (Western Indonesia Time)",
+      "jam": "Sat Dec 30 1899 13:49:53 GMT+0707 (Western Indonesia Time)",
+      "shift": "Shift Siang",
+      "status": "Terlambat",
+      "latitude": null,
+      "longitude": null,
+      "jarakMeter": null,
+      "mapsUrl": "",
+      "qrId": "DIGITALMEERA-ABSENSI-001",
+      "timestamp": 1791442193140,
+      "createdAt": "2026-10-08T06:49:53.140Z"
     }
   ],
   "qrCode": {
@@ -135,6 +233,30 @@
     "appLogo": ""
   },
   "auditLogs": [
+    {
+      "id": "log-1791448534365-gx65g",
+      "actor": "Administrator Utama",
+      "role": "admin",
+      "action": "Login Admin",
+      "details": "Admin digitalmeera.com@gmail.com berhasil masuk ke dashboard.",
+      "timestamp": "2026-10-08T08:35:34.365Z"
+    },
+    {
+      "id": "log-1791447753335-bq68t",
+      "actor": "Administrator Utama",
+      "role": "admin",
+      "action": "Tambah Murid",
+      "details": "Menambahkan murid Rian Pratama (202601)",
+      "timestamp": "2026-10-08T08:22:33.335Z"
+    },
+    {
+      "id": "log-1791447738346-g3kzf",
+      "actor": "Administrator Utama",
+      "role": "admin",
+      "action": "Login Admin",
+      "details": "Admin digitalmeera.com@gmail.com berhasil masuk ke dashboard.",
+      "timestamp": "2026-10-08T08:22:18.346Z"
+    },
     {
       "id": "log-1791445074289-kgchu",
       "actor": "Administrator Utama",

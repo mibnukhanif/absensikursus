@@ -201,6 +201,20 @@ export function asyncMirrorAttendanceToSheets(record: AttendanceRecord) {
 }
 
 /**
+ * Simpan data murid langsung ke Google Spreadsheet secara synchronous
+ */
+export async function syncMuridDirectToSheets(
+  murid: MuridUser,
+  plainPassword?: string
+): Promise<{ success: boolean; message: string; data?: any }> {
+  const payload = {
+    ...murid,
+    password: plainPassword || (murid as any).password || murid.nis
+  };
+  return await sendToGoogleSheets('ADD_MURID', payload);
+}
+
+/**
  * Sync single student or student list to Google Sheets asynchronously
  */
 export function asyncSyncMuridToSheets(murid: MuridUser | MuridUser[], plainPassword?: string) {

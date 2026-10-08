@@ -59,7 +59,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
     <div className={`flex items-center gap-3 ${className}`}>
       {/* Visual Logo Emblem or Custom Uploaded Logo */}
       {activeLogo && !imageError ? (
-        <div className={`relative flex items-center justify-center rounded-2xl overflow-hidden bg-white/10 dark:bg-slate-900 border border-emerald-500/30 p-1 shadow-md shrink-0 ${iconDimensions}`}>
+        <div className={`relative flex items-center justify-center rounded-2xl overflow-hidden bg-white border border-emerald-500/30 p-1 shadow-md shrink-0 ${iconDimensions}`}>
           <img
             src={activeLogo}
             alt={appName}

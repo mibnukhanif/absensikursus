@@ -847,39 +847,85 @@ function handleSaveSingleMurid(ss, m) {
 
   var sheet = getOrCreateSheet(ss, "MURID", HEADERS_DEF.MURID, "#1d4ed8");
   var lastRow = sheet.getLastRow();
+  var lastCol = Math.max(sheet.getLastColumn(), HEADERS_DEF.MURID.length);
+
+  // 1. Baca header kolom baris 1
+  var currentHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var headerMap = {};
+  for (var h = 0; h < currentHeaders.length; h++) {
+    var cName = String(currentHeaders[h] || "").trim().toUpperCase();
+    if (cName) headerMap[cName] = h + 1; // 1-indexed
+  }
+
+  // Jika header belum lengkap di baris 1, otomatis perbarui dengan HEADERS_DEF.MURID
+  if (!headerMap["NIS"] || !headerMap["NAMA"]) {
+    sheet.getRange(1, 1, 1, HEADERS_DEF.MURID.length).setValues([HEADERS_DEF.MURID]);
+    var hRange = sheet.getRange(1, 1, 1, HEADERS_DEF.MURID.length);
+    hRange.setBackground("#1d4ed8");
+    hRange.setFontColor("#FFFFFF");
+    hRange.setFontWeight("bold");
+    sheet.setFrozenRows(1);
+    headerMap = {};
+    for (var nh = 0; nh < HEADERS_DEF.MURID.length; nh++) {
+      headerMap[HEADERS_DEF.MURID[nh]] = nh + 1;
+    }
+  }
+
+  var targetColsCount = Math.max(sheet.getLastColumn(), HEADERS_DEF.MURID.length);
   var rowIndex = -1;
 
+  var nisColIdx = headerMap["NIS"] || 2;
+  var idColIdx = headerMap["ID_MURID"] || 1;
+
+  // 2. Cek apakah NIS atau ID sudah ada sebelumnya di sheet
   if (lastRow > 1) {
-    var data = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
-    for (var i = 0; i < data.length; i++) {
-      if (String(data[i][0]) === String(m.id) || String(data[i][1]) === String(m.nis)) {
+    var rowsData = sheet.getRange(2, 1, lastRow - 1, targetColsCount).getValues();
+    var cleanNis = String(m.nis || "").trim().toUpperCase();
+    var cleanId = String(m.id || "").trim();
+
+    for (var i = 0; i < rowsData.length; i++) {
+      var rowNis = String(rowsData[i][nisColIdx - 1] || "").trim().toUpperCase();
+      var rowId = String(rowsData[i][idColIdx - 1] || "").trim();
+      if ((cleanNis && rowNis === cleanNis) || (cleanId && rowId === cleanId)) {
         rowIndex = i + 2;
         break;
       }
     }
   }
 
-  var rowValues = [
-    m.id || "",
-    m.nis || "",
-    m.nama || "",
-    m.kelas || "",
-    m.username || m.nis || "",
-    m.password || m.nis || "",
-    m.noHp || "",
-    m.status || "aktif",
-    m.tanggalDaftar || new Date().toISOString().split("T")[0]
-  ];
+  // 3. Susun Baris berdasarkan nama kolom di Spreadsheet
+  var rowData = new Array(targetColsCount);
+  for (var c = 0; c < targetColsCount; c++) rowData[c] = "";
+
+  function fillCol(name, val) {
+    var colIdx = headerMap[name];
+    if (colIdx && colIdx <= targetColsCount) {
+      rowData[colIdx - 1] = val;
+    }
+  }
+
+  fillCol("ID_MURID", m.id || ("murid-" + (m.nis || new Date().getTime())));
+  fillCol("NIS", m.nis ? String(m.nis).trim() : "");
+  fillCol("NAMA", m.nama ? String(m.nama).trim() : "");
+  fillCol("KELAS", m.kelas ? String(m.kelas).trim() : "");
+  fillCol("USERNAME", (m.username || m.nis) ? String(m.username || m.nis).trim() : "");
+  fillCol("PASSWORD", (m.password || m.nis) ? String(m.password || m.nis).trim() : "");
+  fillCol("NO_HP", m.noHp ? String(m.noHp).trim() : "");
+  fillCol("STATUS", m.status || "aktif");
+  fillCol("TANGGAL_DAFTAR", m.tanggalDaftar || Utilities.formatDate(new Date(), "Asia/Jakarta", "yyyy-MM-dd"));
 
   if (rowIndex > 0) {
-    sheet.getRange(rowIndex, 1, 1, rowValues.length).setValues([rowValues]);
+    sheet.getRange(rowIndex, 1, 1, targetColsCount).setValues([rowData]);
   } else {
-    sheet.appendRow(rowValues);
+    sheet.appendRow(rowData);
   }
+
+  SpreadsheetApp.flush();
 
   return responseJSON({
     success: true,
-    message: "Data murid " + m.nama + " berhasil disimpan ke Google Sheets."
+    message: "Data murid " + m.nama + " (NIS: " + m.nis + ") berhasil disimpan ke Google Sheets tab MURID.",
+    row: rowIndex > 0 ? rowIndex : sheet.getLastRow()
   });
 }
 
@@ -1070,6 +1116,22 @@ function handleUpdateSettings(ss, settingsObj) {
 
 function getOrCreateSheet(ss, sheetName, defaultHeaders, headerColor) {
   var sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    var allSheets = ss.getSheets();
+    var target = String(sheetName).trim().toUpperCase();
+    for (var i = 0; i < allSheets.length; i++) {
+      var curName = allSheets[i].getName().trim().toUpperCase();
+      if (curName === target) {
+        sheet = allSheets[i];
+        break;
+      }
+      if (target === "MURID" && (curName === "SISWA" || curName === "DATA MURID" || curName === "DATA SISWA")) {
+        sheet = allSheets[i];
+        break;
+      }
+    }
+  }
+
   if (!sheet) {
     sheet = ss.insertSheet(sheetName);
   }
